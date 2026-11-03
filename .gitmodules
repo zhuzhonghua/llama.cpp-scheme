@@ -1,0 +1,6 @@
+[submodule "llama.cpp"]
+	path = llama.cpp
+	url = https://github.com/ggml-org/llama.cpp
+[submodule "dummyscheme"]
+	path = dummyscheme
+	url = https://github.com/zhuzhonghua/dummyscheme
