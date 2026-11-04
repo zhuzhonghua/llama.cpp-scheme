@@ -40,6 +40,8 @@ set(DUMMYSCHEME_SOURCES
 add_executable(scmllama
     main.cpp
     scmllama.cpp
+    scmllama_handle.cpp
+    scmllama_util.cpp
     ${DUMMYSCHEME_SOURCES})
 
 target_include_directories(scmllama PRIVATE

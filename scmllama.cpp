@@ -44,6 +44,7 @@ Runtime::Runtime() : vm_(Scheme::scm_create_vm())
 
 Runtime::~Runtime()
 {
+  handles_.shutdown();
   llama_backend_free();
   Scheme::scm_destroy_vm(vm_);
 }
