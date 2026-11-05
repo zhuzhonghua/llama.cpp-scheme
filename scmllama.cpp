@@ -15,9 +15,10 @@
 
 namespace scmllama {
 
-// Binding registration (defined in scmllama_model.cpp / scmllama_vocab.cpp).
+// Binding registration (defined in scmllama_model.cpp / scmllama_vocab.cpp / scmllama_context.cpp).
 extern void scmllama_register_model_lib(Scheme::VM* vm);
 extern void scmllama_register_vocab_lib(Scheme::VM* vm);
+extern void scmllama_register_context_lib(Scheme::VM* vm);
 
 const char* const Runtime::kRegistryKey = "~scmllama.runtime";
 
@@ -52,6 +53,7 @@ Runtime::Runtime() : vm_(Scheme::scm_create_vm())
     scmllama_register_basic_lib(vm_);
     scmllama_register_model_lib(vm_);
     scmllama_register_vocab_lib(vm_);
+    scmllama_register_context_lib(vm_);
   }
 }
 
