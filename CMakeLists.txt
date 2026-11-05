@@ -45,6 +45,7 @@ add_executable(scmllama
     scmllama_model.cpp
     scmllama_vocab.cpp
     scmllama_context.cpp
+    scmllama_batch.cpp
     ${DUMMYSCHEME_SOURCES})
 
 target_include_directories(scmllama PRIVATE
