@@ -9,9 +9,17 @@
 
 #include "scmllama.h"
 
+#include "scmllama_util.h"
+
 #include "llama.h"
 
 namespace scmllama {
+
+// Binding registration (defined in scmllama_model.cpp / scmllama_vocab.cpp).
+extern void scmllama_register_model_lib(Scheme::VM* vm);
+extern void scmllama_register_vocab_lib(Scheme::VM* vm);
+
+const char* const Runtime::kRegistryKey = "~scmllama.runtime";
 
 static Scheme::ValueT scmllama_stub_llm_version(Scheme::VM* vm)
 {
@@ -24,9 +32,7 @@ static Scheme::ValueT scmllama_stub_llm_system_info(Scheme::VM* vm)
   return Scheme::scm_make_string(vm, info ? info : "");
 }
 
-// Registers all Scheme bindings. The table is a function-local static, so it
-// has no external linkage.
-static void scmllama_register_lib(Scheme::VM* vm)
+static void scmllama_register_basic_lib(Scheme::VM* vm)
 {
   static const Scheme::RegCProc kLib[] = {
     Scheme::RegCProc("llm-version",     scmllama_stub_llm_version),
@@ -39,14 +45,24 @@ static void scmllama_register_lib(Scheme::VM* vm)
 Runtime::Runtime() : vm_(Scheme::scm_create_vm())
 {
   llama_backend_init();
-  scmllama_register_lib(vm_);
+  if (vm_)
+  {
+    Scheme::scm_registry_set(vm_, kRegistryKey,
+                             Scheme::scm_make_lightuserdata(vm_, this));
+    scmllama_register_basic_lib(vm_);
+    scmllama_register_model_lib(vm_);
+    scmllama_register_vocab_lib(vm_);
+  }
 }
 
 Runtime::~Runtime()
 {
+  if (vm_)
+    Scheme::scm_registry_unset(vm_, kRegistryKey);
   handles_.shutdown();
   llama_backend_free();
-  Scheme::scm_destroy_vm(vm_);
+  if (vm_)
+    Scheme::scm_destroy_vm(vm_);
 }
 
 } // namespace scmllama

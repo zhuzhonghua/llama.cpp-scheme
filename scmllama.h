@@ -1,12 +1,6 @@
 #pragma once
 
 // Binds llama.cpp into a dummyscheme VM.
-//
-// scmllama::Runtime owns the VM, the llama backend, and the handle table
-// with RAII:
-//   * construction: scm_create_vm() + llama_backend_init() + register bindings
-//   * destruction:  handles.shutdown() + llama_backend_free() + scm_destroy_vm()
-//
 // A Runtime is not thread-safe and must stay alive as long as the VM is used.
 
 #include "vm.h"
@@ -30,6 +24,11 @@ public:
 
   // Handle registry for all Scheme-visible resources (model, context, ...).
   HandleTable* handles() { return &handles_; }
+
+public:
+  // The registry key used to look up this Runtime from bindings (vm -> Runtime*).
+  // Must outlive the Runtime itself (string literal storage).
+  static const char* const kRegistryKey;
 
 private:
   Scheme::VM* vm_ = nullptr;

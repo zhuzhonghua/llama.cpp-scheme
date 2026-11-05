@@ -5,8 +5,6 @@
 // LlmHandle record; records are never freed before shutdown so stale Scheme
 // values are detected instead of dereferencing freed memory.
 //
-// Owned by Runtime; do not construct standalone.
-
 #include "vm.h"
 
 #include <vector>
