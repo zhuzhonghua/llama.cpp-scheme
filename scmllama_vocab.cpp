@@ -17,61 +17,6 @@
 
 namespace scmllama {
 
-// --- token helpers ---
-
-static llama_token scmllama_token_from_value(Scheme::VM* vm,
-                                             Scheme::ValueT* value,
-                                             const char* who)
-{
-  if (!value || !Scheme::scm_is_int(vm, value))
-  {
-    Util::error_raise(vm, "%s: expected a token id (integer), got %s", who,
-                 value ? Scheme::scm_typename(vm, value) : "nothing");
-  }
-
-  int64_t id = static_cast<int64_t>(Scheme::scm_get_int(vm, value));
-  if (id < 0 || id > INT32_MAX)
-    Util::error_raise(vm, "%s: token id %lld is out of range", who,
-                 static_cast<long long>(id));
-  return static_cast<llama_token>(id);
-}
-
-static std::vector<llama_token> scmllama_token_list(Scheme::VM* vm,
-                                                    Scheme::ValueT* value,
-                                                    const char* who)
-{
-  std::vector<llama_token> tokens;
-
-  if (Scheme::scm_is_vector(vm, value))
-  {
-    int n = Scheme::scm_vector_len(vm, value);
-    tokens.reserve(n);
-    for (int i = 0; i < n; ++i)
-    {
-      Scheme::ValueT token = Scheme::scm_vector_ref(vm, value, i);
-      tokens.push_back(scmllama_token_from_value(vm, &token, who));
-    }
-    return tokens;
-  }
-
-  if (Scheme::scm_is_list(vm, value))
-  {
-    Scheme::ValueT* cur = value;
-    while (Scheme::scm_is_pair(vm, cur))
-    {
-      tokens.push_back(
-          scmllama_token_from_value(vm, Scheme::scm_car(vm, cur), who));
-      cur = Scheme::scm_cdr(vm, cur);
-    }
-    if (!Scheme::scm_is_null(vm, cur))
-      Util::error_raise(vm, "%s: expected a proper list of token ids", who);
-    return tokens;
-  }
-
-  Util::error_raise(vm, "%s: expected a vector or list of token ids, got %s", who,
-               value ? Scheme::scm_typename(vm, value) : "nothing");
-}
-
 // --- stubs ---
 
 static Scheme::ValueT scmllama_stub_llm_tokenize(Scheme::VM* vm,
@@ -137,8 +82,7 @@ static Scheme::ValueT scmllama_stub_llm_detokenize(Scheme::VM* vm,
   LlmHandle* handle = Util::model_handle(vm, value, kWho);
   const llama_vocab* vocab = Util::model_vocab(handle);
 
-  std::vector<llama_token> tokens =
-      scmllama_token_list(vm, tokens_value, kWho);
+  std::vector<llama_token> tokens = Util::token_list(vm, tokens_value, kWho);
 
   Util::option_require_known(
       vm, opts, kKeys,
@@ -187,7 +131,7 @@ static Scheme::ValueT scmllama_stub_llm_token_to_piece(
   Scheme::ValueT* opts = Util::option_from_rest(vm, rest, kWho);
   LlmHandle* handle = Util::model_handle(vm, value, kWho);
   const llama_vocab* vocab = Util::model_vocab(handle);
-  llama_token token = scmllama_token_from_value(vm, token_value, kWho);
+  llama_token token = Util::token_from_value(vm, token_value, kWho);
 
   Util::option_require_known(
       vm, opts, kKeys,
@@ -221,7 +165,7 @@ static Scheme::ValueT scmllama_stub_llm_eog_p(Scheme::VM* vm,
 {
   LlmHandle* handle = Util::model_handle(vm, value, "llm-eog?");
   const llama_vocab* vocab = Util::model_vocab(handle);
-  llama_token token = scmllama_token_from_value(vm, token_value, "llm-eog?");
+  llama_token token = Util::token_from_value(vm, token_value, "llm-eog?");
   return Scheme::scm_make_bool(vm, llama_vocab_is_eog(vocab, token));
 }
 

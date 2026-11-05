@@ -6,10 +6,10 @@
 
 #include "vm.h"
 
-#include <cstdint>
+#include "llama.h"
 
-struct llama_model;
-struct llama_vocab;
+#include <cstdint>
+#include <vector>
 
 namespace scmllama {
 
@@ -23,6 +23,7 @@ class Runtime;       // defined in scmllama.h
 //   runtime   recover the Runtime from a VM
 //   handle_*  handle lookup shortcuts (one call = get + kind check)
 //   model_*   handle -> llama object accessors
+//   token_*   token id parsing
 class Util {
 public:
   // Raises a Scheme error with a formatted message.
@@ -43,6 +44,17 @@ public:
 
   static const llama_model* model_ptr(LlmHandle* handle);
   static const llama_vocab* model_vocab(LlmHandle* handle);
+
+  // --- token parsing ---
+
+  // Strict integer -> llama_token with range check.
+  static llama_token token_from_value(Scheme::VM* vm, Scheme::ValueT* value,
+                                      const char* who);
+
+  // Vector or proper list of token ids -> std::vector.
+  static std::vector<llama_token> token_list(Scheme::VM* vm,
+                                             Scheme::ValueT* value,
+                                             const char* who);
 
   // --- option parsing ---
 

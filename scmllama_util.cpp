@@ -57,6 +57,59 @@ const llama_vocab* Util::model_vocab(LlmHandle* handle)
   return llama_model_get_vocab(model_ptr(handle));
 }
 
+// ---- Util: token ----
+
+llama_token Util::token_from_value(Scheme::VM* vm, Scheme::ValueT* value,
+                                   const char* who)
+{
+  if (!value || !Scheme::scm_is_int(vm, value))
+  {
+    error_raise(vm, "%s: expected a token id (integer), got %s", who,
+                value ? Scheme::scm_typename(vm, value) : "nothing");
+  }
+
+  int64_t id = static_cast<int64_t>(Scheme::scm_get_int(vm, value));
+  if (id < 0 || id > INT32_MAX)
+    error_raise(vm, "%s: token id %lld is out of range", who,
+                static_cast<long long>(id));
+  return static_cast<llama_token>(id);
+}
+
+std::vector<llama_token> Util::token_list(Scheme::VM* vm,
+                                          Scheme::ValueT* value,
+                                          const char* who)
+{
+  std::vector<llama_token> tokens;
+
+  if (Scheme::scm_is_vector(vm, value))
+  {
+    int n = Scheme::scm_vector_len(vm, value);
+    tokens.reserve(n);
+    for (int i = 0; i < n; ++i)
+    {
+      Scheme::ValueT token = Scheme::scm_vector_ref(vm, value, i);
+      tokens.push_back(token_from_value(vm, &token, who));
+    }
+    return tokens;
+  }
+
+  if (Scheme::scm_is_list(vm, value))
+  {
+    Scheme::ValueT* cur = value;
+    while (Scheme::scm_is_pair(vm, cur))
+    {
+      tokens.push_back(token_from_value(vm, Scheme::scm_car(vm, cur), who));
+      cur = Scheme::scm_cdr(vm, cur);
+    }
+    if (!Scheme::scm_is_null(vm, cur))
+      error_raise(vm, "%s: expected a proper list of token ids", who);
+    return tokens;
+  }
+
+  error_raise(vm, "%s: expected a vector or list of token ids, got %s", who,
+              value ? Scheme::scm_typename(vm, value) : "nothing");
+}
+
 // ---- Util: option ----
 
 Scheme::ValueT* Util::option_from_rest(Scheme::VM* vm, Scheme::ValueT* rest,
