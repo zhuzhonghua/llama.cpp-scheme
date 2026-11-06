@@ -2,7 +2,7 @@
 ;;
 ;;   ./build/scmllama test/tokenize.scm
 
-(load "test/common.scm")
+(require "test.common")
 
 ;; ---- model handle --------------------------------------------------------
 

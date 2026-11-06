@@ -2,7 +2,7 @@
 ;;
 ;;   ./build/scmllama test/generate.scm
 
-(load "test/common.scm")
+(require "test.common")
 
 (define m (llm-model-load model-path))
 (define ctx (llm-context-new m '((n-ctx . 512))))

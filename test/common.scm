@@ -1,6 +1,7 @@
 ;; Shared helpers for the test scripts.
 ;;
-;; Loaded with (load "test/common.scm"), so run from the repository root.
+;; Required with (require "test.common") — run from the repository root so
+;; the default require path "./?.scm" resolves to ./test/common.scm.
 
 ;; Silence llama.cpp diagnostics (model load info, metal pipelines, ...).
 ;; Comment out or call (llm-quiet! #f) when debugging the C side.

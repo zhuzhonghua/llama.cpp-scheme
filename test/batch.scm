@@ -2,7 +2,7 @@
 ;;
 ;;   ./build/scmllama test/batch.scm
 
-(load "test/common.scm")
+(require "test.common")
 
 ;; ---- batch lifecycle ----------------------------------------------------
 

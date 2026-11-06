@@ -2,7 +2,7 @@
 ;;
 ;;   ./build/scmllama test/context.scm
 
-(load "test/common.scm")
+(require "test.common")
 
 ;; ---- context lifecycle --------------------------------------------------
 

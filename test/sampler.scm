@@ -2,7 +2,7 @@
 ;;
 ;;   ./build/scmllama test/sampler.scm
 
-(load "test/common.scm")
+(require "test.common")
 
 ;; ---- setup ---------------------------------------------------------------
 
