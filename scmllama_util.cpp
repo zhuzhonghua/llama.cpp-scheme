@@ -190,6 +190,19 @@ int64_t Util::option_int(Scheme::VM* vm, Scheme::ValueT* slot, int64_t def,
   return static_cast<int64_t>(Scheme::scm_get_int(vm, slot));
 }
 
+float Util::option_float(Scheme::VM* vm, Scheme::ValueT* slot, float def,
+                         const char* who, const char* key)
+{
+  if (!slot || Scheme::scm_is_null(vm, slot))
+    return def;
+  if (Scheme::scm_is_int(vm, slot))
+    return static_cast<float>(Scheme::scm_get_int(vm, slot));
+  if (Scheme::scm_is_float(vm, slot))
+    return static_cast<float>(Scheme::scm_get_float(vm, slot));
+  error_raise(vm, "%s: option '%s' expects a number, got %s", who, key,
+              Scheme::scm_typename(vm, slot));
+}
+
 bool Util::option_get_bool(Scheme::VM* vm, Scheme::ValueT* alist,
                            const char* key, bool def, const char* who)
 {
@@ -200,6 +213,12 @@ int64_t Util::option_get_int(Scheme::VM* vm, Scheme::ValueT* alist,
                              const char* key, int64_t def, const char* who)
 {
   return option_int(vm, option_find(vm, alist, key, who), def, who, key);
+}
+
+float Util::option_get_float(Scheme::VM* vm, Scheme::ValueT* alist,
+                             const char* key, float def, const char* who)
+{
+  return option_float(vm, option_find(vm, alist, key, who), def, who, key);
 }
 
 } // namespace scmllama

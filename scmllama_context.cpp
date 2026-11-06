@@ -64,30 +64,19 @@ static Scheme::ValueT scmllama_stub_llm_context_new(Scheme::VM* vm,
   params.kv_unified =
       Util::option_get_bool(vm, opts, "kv-unified", params.kv_unified, kWho);
 
-  // float options — dummyscheme has no scm_get_float, use scm_get_number
-  Scheme::ValueT* slot = Util::option_find(vm, opts, "rope-freq-base", kWho);
-  if (slot && !Scheme::scm_is_null(vm, slot))
-    params.rope_freq_base = static_cast<float>(Scheme::scm_get_float(vm, slot));
-
-  slot = Util::option_find(vm, opts, "rope-freq-scale", kWho);
-  if (slot && !Scheme::scm_is_null(vm, slot))
-    params.rope_freq_scale = static_cast<float>(Scheme::scm_get_float(vm, slot));
-
-  slot = Util::option_find(vm, opts, "yarn-ext-factor", kWho);
-  if (slot && !Scheme::scm_is_null(vm, slot))
-    params.yarn_ext_factor = static_cast<float>(Scheme::scm_get_float(vm, slot));
-
-  slot = Util::option_find(vm, opts, "yarn-attn-factor", kWho);
-  if (slot && !Scheme::scm_is_null(vm, slot))
-    params.yarn_attn_factor = static_cast<float>(Scheme::scm_get_float(vm, slot));
-
-  slot = Util::option_find(vm, opts, "yarn-beta-fast", kWho);
-  if (slot && !Scheme::scm_is_null(vm, slot))
-    params.yarn_beta_fast = static_cast<float>(Scheme::scm_get_float(vm, slot));
-
-  slot = Util::option_find(vm, opts, "yarn-beta-slow", kWho);
-  if (slot && !Scheme::scm_is_null(vm, slot))
-    params.yarn_beta_slow = static_cast<float>(Scheme::scm_get_float(vm, slot));
+  // float options
+  params.rope_freq_base = Util::option_get_float(
+      vm, opts, "rope-freq-base", params.rope_freq_base, kWho);
+  params.rope_freq_scale = Util::option_get_float(
+      vm, opts, "rope-freq-scale", params.rope_freq_scale, kWho);
+  params.yarn_ext_factor = Util::option_get_float(
+      vm, opts, "yarn-ext-factor", params.yarn_ext_factor, kWho);
+  params.yarn_attn_factor = Util::option_get_float(
+      vm, opts, "yarn-attn-factor", params.yarn_attn_factor, kWho);
+  params.yarn_beta_fast = Util::option_get_float(
+      vm, opts, "yarn-beta-fast", params.yarn_beta_fast, kWho);
+  params.yarn_beta_slow = Util::option_get_float(
+      vm, opts, "yarn-beta-slow", params.yarn_beta_slow, kWho);
 
   params.yarn_orig_ctx = static_cast<uint32_t>(
       Util::option_get_int(vm, opts, "yarn-orig-ctx", params.yarn_orig_ctx, kWho));

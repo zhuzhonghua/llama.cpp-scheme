@@ -76,13 +76,17 @@ public:
                           const char* who, const char* key);
   static int64_t option_int(Scheme::VM* vm, Scheme::ValueT* slot, int64_t def,
                             const char* who, const char* key);
+  static float option_float(Scheme::VM* vm, Scheme::ValueT* slot, float def,
+                            const char* who, const char* key);
 
-  // option_find + option_bool / option_int in one call: returns `def` when
-  // `key` is absent from `alist`.
+  // option_find + option_bool / option_int / option_float in one call:
+  // returns `def` when `key` is absent from `alist`.
   static bool option_get_bool(Scheme::VM* vm, Scheme::ValueT* alist,
                               const char* key, bool def, const char* who);
   static int64_t option_get_int(Scheme::VM* vm, Scheme::ValueT* alist,
                                 const char* key, int64_t def, const char* who);
+  static float option_get_float(Scheme::VM* vm, Scheme::ValueT* alist,
+                                const char* key, float def, const char* who);
 };
 
 } // namespace scmllama
