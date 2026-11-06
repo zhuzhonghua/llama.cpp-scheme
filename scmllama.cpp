@@ -3,6 +3,7 @@
 // Scheme side:
 //   (llm-version)      -> string   llama_version()
 //   (llm-system-info)  -> string   llama_print_system_info()
+//   (llm-quiet! on)    -> boolean  silence/restore llama.cpp diagnostics
 //
 // The llama backend lifecycle is managed by scmllama::Runtime (RAII):
 // constructor calls llama_backend_init(), destructor calls llama_backend_free().
@@ -12,6 +13,8 @@
 #include "scmllama_util.h"
 
 #include "llama.h"
+
+#include <cstdlib>
 
 namespace scmllama {
 
@@ -38,11 +41,33 @@ static Scheme::ValueT scmllama_stub_llm_system_info(Scheme::VM* vm)
   return Scheme::scm_make_string(vm, info ? info : "");
 }
 
+// No-op log callback: drops every ggml/llama diagnostic line.
+static void scmllama_log_noop(ggml_log_level level, const char* text,
+                              void* user_data)
+{
+  (void)level;
+  (void)text;
+  (void)user_data;
+}
+
+// #t silences, #f restores the default stderr callback (llama_log_set
+// maps a NULL callback back to llama_log_callback_default).
+static Scheme::ValueT scmllama_stub_llm_quiet_bang(Scheme::VM* vm,
+                                                   Scheme::ValueT* value)
+{
+  if (Scheme::scm_get_bool(vm, value))
+    llama_log_set(scmllama_log_noop, NULL);
+  else
+    llama_log_set(NULL, NULL);
+  return Scheme::scm_make_bool(vm, true);
+}
+
 static void scmllama_register_basic_lib(Scheme::VM* vm)
 {
   static const Scheme::RegCProc kLib[] = {
     Scheme::RegCProc("llm-version",     scmllama_stub_llm_version),
     Scheme::RegCProc("llm-system-info", scmllama_stub_llm_system_info),
+    Scheme::RegCProc("llm-quiet!",      scmllama_stub_llm_quiet_bang),
     Scheme::RegCProc(NULL, -1)
   };
   Scheme::scm_register_lib(vm, kLib);
