@@ -6,6 +6,8 @@
 // Options:
 //   max-tokens    integer  256   stop after this many tokens
 //   add-special   boolean  #t    prepend BOS when tokenizing the prompt
+//   parse-special boolean  #f    treat special token markers in the prompt
+//                                (e.g. <|im_start|>) as special tokens
 //
 // The prompt is prefilled in one decode, then each generated token is decoded
 // one at a time.  The callback gets one string piece per token; an EOG token
@@ -46,7 +48,7 @@ static Scheme::ValueT scmllama_stub_llm_generate(Scheme::VM* vm,
                                                  Scheme::ValueT* rest)
 {
   static const char* const kWho = "llm-generate";
-  static const char* const kKeys[] = {"max-tokens", "add-special"};
+  static const char* const kKeys[] = {"max-tokens", "add-special", "parse-special"};
 
   Scheme::ValueT* opts = Util::option_from_rest(vm, rest, kWho);
 
@@ -73,9 +75,10 @@ static Scheme::ValueT scmllama_stub_llm_generate(Scheme::VM* vm,
                       static_cast<long long>(max_tokens));
 
   bool add_special = Util::option_get_bool(vm, opts, "add-special", true, kWho);
+  bool parse_special = Util::option_get_bool(vm, opts, "parse-special", false, kWho);
 
   std::vector<llama_token> tokens = Util::tokenize_text(
-      vm, vocab, prompt, prompt_len, add_special, false, kWho);
+      vm, vocab, prompt, prompt_len, add_special, parse_special, kWho);
   if (tokens.empty())
     Util::error_raise(vm, "%s: prompt produced no tokens", kWho);
 
