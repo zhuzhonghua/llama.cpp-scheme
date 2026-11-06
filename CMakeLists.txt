@@ -47,6 +47,7 @@ add_executable(scmllama
     scmllama_context.cpp
     scmllama_batch.cpp
     scmllama_sampler.cpp
+    scmllama_generate.cpp
     ${DUMMYSCHEME_SOURCES})
 
 target_include_directories(scmllama PRIVATE

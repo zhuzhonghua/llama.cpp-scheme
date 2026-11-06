@@ -42,23 +42,8 @@ static Scheme::ValueT scmllama_stub_llm_tokenize(Scheme::VM* vm,
   bool parse_special =
       Util::option_get_bool(vm, opts, "parse-special", false, kWho);
 
-  // Upper bound: one token per byte, plus up to two special tokens.
-  int32_t cap = text_len + (add_special ? 2 : 0);
-  std::vector<llama_token> tokens(static_cast<size_t>(cap));
-  int32_t count = llama_tokenize(vocab, text, text_len, tokens.data(), cap,
-                                 add_special, parse_special);
-  if (count == INT32_MIN)
-    Util::error_raise(vm, "%s: tokenization result exceeds int32 limit", kWho);
-  if (count < 0)
-  {
-    cap = -count;
-    tokens.resize(static_cast<size_t>(cap));
-    count = llama_tokenize(vocab, text, text_len, tokens.data(), cap,
-                           add_special, parse_special);
-    if (count < 0)
-      Util::error_raise(vm, "%s: tokenization failed", kWho);
-  }
-  tokens.resize(static_cast<size_t>(count));
+  std::vector<llama_token> tokens = Util::tokenize_text(
+      vm, vocab, text, text_len, add_special, parse_special, kWho);
 
   Sgcvar1(vm, result);
   *result = Scheme::scm_make_vector(vm, static_cast<int>(tokens.size()));

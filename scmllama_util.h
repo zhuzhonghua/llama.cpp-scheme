@@ -56,6 +56,14 @@ public:
                                              Scheme::ValueT* value,
                                              const char* who);
 
+  // Text -> vector of token ids (llama_tokenize with a growing buffer).
+  static std::vector<llama_token> tokenize_text(Scheme::VM* vm,
+                                                const llama_vocab* vocab,
+                                                const char* text, int text_len,
+                                                bool add_special,
+                                                bool parse_special,
+                                                const char* who);
+
   // --- option parsing ---
 
   // Extracts the optional options alist from a rest-argument list: either no

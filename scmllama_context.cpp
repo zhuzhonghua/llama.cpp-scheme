@@ -142,6 +142,17 @@ static Scheme::ValueT scmllama_stub_llm_context_info(Scheme::VM* vm,
   return *table;
 }
 
+// Drop the KV cache so the same context can take a fresh prompt.
+static Scheme::ValueT scmllama_stub_llm_reset(Scheme::VM* vm,
+                                              Scheme::ValueT* value)
+{
+  static const char* const kWho = "llm-reset";
+  LlmHandle* handle = Util::handletable(vm)->get(vm, value, kLlmContext, kWho);
+  llama_memory_clear(llama_get_memory(static_cast<llama_context*>(handle->ptr)),
+                     true);
+  return Scheme::scm_make_bool(vm, true);
+}
+
 void scmllama_register_context_lib(Scheme::VM* vm)
 {
   static const Scheme::RegCProc kLib[] = {
@@ -149,6 +160,7 @@ void scmllama_register_context_lib(Scheme::VM* vm)
     Scheme::RegCProc("llm-context-free", scmllama_stub_llm_context_free),
     Scheme::RegCProc("llm-context?",     scmllama_stub_llm_context_p),
     Scheme::RegCProc("llm-context-info", scmllama_stub_llm_context_info),
+    Scheme::RegCProc("llm-reset",        scmllama_stub_llm_reset),
     Scheme::RegCProc(NULL, -1)
   };
   Scheme::scm_register_lib(vm, kLib);

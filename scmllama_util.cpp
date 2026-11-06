@@ -110,6 +110,33 @@ std::vector<llama_token> Util::token_list(Scheme::VM* vm,
               value ? Scheme::scm_typename(vm, value) : "nothing");
 }
 
+std::vector<llama_token> Util::tokenize_text(Scheme::VM* vm,
+                                             const llama_vocab* vocab,
+                                             const char* text, int text_len,
+                                             bool add_special,
+                                             bool parse_special,
+                                             const char* who)
+{
+  // Upper bound: one token per byte, plus up to two special tokens.
+  int32_t cap = text_len + (add_special ? 2 : 0);
+  std::vector<llama_token> tokens(static_cast<size_t>(cap));
+  int32_t count = llama_tokenize(vocab, text, text_len, tokens.data(), cap,
+                                 add_special, parse_special);
+  if (count == INT32_MIN)
+    error_raise(vm, "%s: tokenization result exceeds int32 limit", who);
+  if (count < 0)
+  {
+    cap = -count;
+    tokens.resize(static_cast<size_t>(cap));
+    count = llama_tokenize(vocab, text, text_len, tokens.data(), cap,
+                           add_special, parse_special);
+    if (count < 0)
+      error_raise(vm, "%s: tokenization failed", who);
+  }
+  tokens.resize(static_cast<size_t>(count));
+  return tokens;
+}
+
 // ---- Util: option ----
 
 Scheme::ValueT* Util::option_from_rest(Scheme::VM* vm, Scheme::ValueT* rest,
