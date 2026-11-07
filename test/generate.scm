@@ -44,6 +44,28 @@
   (string-length (llm-generate ctx smpl prompt (lambda (p) #t) '((max-tokens . 8)))))
 (check-true "max-tokens bounds the length" (<= short-len long-len))
 
+;; ---- early stop via the callback's return value ---------------------------
+
+;; Returning #f from the callback ends generation at this token; any other
+;; value keeps it going.
+(llm-reset ctx)
+(define seen 0)
+(define partial
+  (llm-generate ctx smpl prompt
+                (lambda (piece)
+                  (set! seen (+ seen 1))
+                  (if (= seen 3) #f #t))
+                '((max-tokens . 40))))
+(check "callback #f stops generation" seen 3)
+(check-true "partial text is returned" (> (string-length partial) 0))
+
+;; Nothing to reset afterwards: stopping is plain control flow.
+(llm-reset ctx)
+(define after-stop
+  (llm-generate ctx smpl prompt (lambda (p) #t) '((max-tokens . 4))))
+(check "generation works after an early stop"
+       (string-length after-stop) short-len)
+
 ;; ---- error paths ---------------------------------------------------------
 
 (llm-reset ctx)

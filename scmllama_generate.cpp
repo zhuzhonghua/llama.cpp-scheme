@@ -12,6 +12,10 @@
 // The prompt is prefilled in one decode, then each generated token is decoded
 // one at a time.  The callback gets one string piece per token; an EOG token
 // ends the loop.  Use (llm-reset ctx) to reuse the context for a new prompt.
+//
+// Returning #f from the callback stops generation: llm-generate then returns
+// the text produced so far.  Any other value keeps going, so a callback that
+// only appends (and returns nothing in particular) does not stop by accident.
 
 #include "scmllama_util.h"
 #include "scmllama_handle.h"
@@ -135,6 +139,12 @@ static Scheme::ValueT scmllama_stub_llm_generate(Scheme::VM* vm,
       Util::error_raise(vm, "%s: callback failed", kWho);
 
     ++generated;
+
+    // The callback returns #f to ask us to stop here; the text produced so
+    // far is returned to Scheme.
+    if (Scheme::scm_is_false(vm, out))
+      break;
+
     if (generated >= max_tokens)
       break;
 
