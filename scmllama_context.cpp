@@ -56,7 +56,7 @@ static Scheme::ValueT scmllama_stub_llm_context_new(Scheme::VM* vm,
   params.offload_kqv =
       Util::option_get_bool(vm, opts, "offload-kqv", params.offload_kqv, kWho);
   params.no_perf =
-      Util::option_get_bool(vm, opts, "no-perf", params.no_perf, kWho);
+      Util::option_get_bool(vm, opts, "no-perf", false, kWho);
   params.op_offload =
       Util::option_get_bool(vm, opts, "op-offload", params.op_offload, kWho);
   params.swa_full =
@@ -153,6 +153,67 @@ static Scheme::ValueT scmllama_stub_llm_reset(Scheme::VM* vm,
   return Scheme::scm_make_bool(vm, true);
 }
 
+// Put an integer value into the perf hash-table under the given string key.
+static void scmllama_perf_puti(Scheme::VM* vm, Scheme::ValueT* table,
+                               Scheme::ValueT* keyv, Scheme::ValueT* valv,
+                               const char* key, int32_t v)
+{
+  *keyv = Scheme::scm_make_string(vm, key, (int)strlen(key));
+  *valv = Scheme::scm_make_int(vm, v);
+  Scheme::scm_table_set(vm, table, keyv, *valv);
+}
+
+// Put a float value into the perf hash-table under the given string key.
+static void scmllama_perf_putf(Scheme::VM* vm, Scheme::ValueT* table,
+                               Scheme::ValueT* keyv, Scheme::ValueT* valv,
+                               const char* key, double v)
+{
+  *keyv = Scheme::scm_make_string(vm, key, (int)strlen(key));
+  *valv = Scheme::scm_make_float(vm, v);
+  Scheme::scm_table_set(vm, table, keyv, *valv);
+}
+
+// Performance counters for the context (prefill + decode timing/tokens).
+static Scheme::ValueT scmllama_stub_llm_perf(Scheme::VM* vm,
+                                              Scheme::ValueT* value)
+{
+  static const char* const kWho = "llm-perf";
+  LlmHandle* handle = Util::handletable(vm)->get(vm, value, kLlmContext, kWho);
+  llama_context* ctx = static_cast<llama_context*>(handle->ptr);
+
+  const llama_perf_context_data perf = llama_perf_context(ctx);
+
+  const double prefill_tps =
+      perf.t_p_eval_ms > 0.0 ? perf.n_p_eval / (perf.t_p_eval_ms / 1000.0) : 0.0;
+  const double decode_tps =
+      perf.t_eval_ms > 0.0 ? perf.n_eval / (perf.t_eval_ms / 1000.0) : 0.0;
+
+  Sgcvar1(vm, table);
+  *table = Scheme::scm_make_table(vm);
+
+  Sgcvar2(vm, keyv, valv);
+
+  scmllama_perf_puti(vm, table, keyv, valv, "n-prefill", perf.n_p_eval);
+  scmllama_perf_puti(vm, table, keyv, valv, "n-decode", perf.n_eval);
+  scmllama_perf_putf(vm, table, keyv, valv, "t-prefill-ms", perf.t_p_eval_ms);
+  scmllama_perf_putf(vm, table, keyv, valv, "t-decode-ms", perf.t_eval_ms);
+  scmllama_perf_putf(vm, table, keyv, valv, "t-load-ms", perf.t_load_ms);
+  scmllama_perf_putf(vm, table, keyv, valv, "prefill-tps", prefill_tps);
+  scmllama_perf_putf(vm, table, keyv, valv, "decode-tps", decode_tps);
+
+  return *table;
+}
+
+// Reset the context's performance counters.
+static Scheme::ValueT scmllama_stub_llm_perf_reset(Scheme::VM* vm,
+                                                    Scheme::ValueT* value)
+{
+  static const char* const kWho = "llm-perf-reset";
+  LlmHandle* handle = Util::handletable(vm)->get(vm, value, kLlmContext, kWho);
+  llama_perf_context_reset(static_cast<llama_context*>(handle->ptr));
+  return Scheme::scm_make_bool(vm, true);
+}
+
 void scmllama_register_context_lib(Scheme::VM* vm)
 {
   static const Scheme::RegCProc kLib[] = {
@@ -161,6 +222,8 @@ void scmllama_register_context_lib(Scheme::VM* vm)
     Scheme::RegCProc("llm-context?",     scmllama_stub_llm_context_p),
     Scheme::RegCProc("llm-context-info", scmllama_stub_llm_context_info),
     Scheme::RegCProc("llm-reset",        scmllama_stub_llm_reset),
+    Scheme::RegCProc("llm-perf",         scmllama_stub_llm_perf),
+    Scheme::RegCProc("llm-perf-reset",   scmllama_stub_llm_perf_reset),
     Scheme::RegCProc(NULL, -1)
   };
   Scheme::scm_register_lib(vm, kLib);
