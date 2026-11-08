@@ -214,6 +214,46 @@ static Scheme::ValueT scmllama_stub_llm_perf_reset(Scheme::VM* vm,
   return Scheme::scm_make_bool(vm, true);
 }
 
+// Save the context state (KV cache + logits) to a session file.
+// Token history is managed by the Scheme side, so an empty token list is stored.
+static Scheme::ValueT scmllama_stub_llm_state_save(Scheme::VM* vm,
+                                                    Scheme::ValueT* ctx_value,
+                                                    Scheme::ValueT* path_value)
+{
+  static const char* const kWho = "llm-state-save";
+  LlmHandle* handle = Util::handletable(vm)->get(vm, ctx_value, kLlmContext, kWho);
+  llama_context* ctx = static_cast<llama_context*>(handle->ptr);
+
+  int path_len = 0;
+  const char* path_chars = Scheme::scm_get_string(vm, path_value, &path_len);
+  std::string path(path_chars ? path_chars : "", path_chars ? path_len : 0);
+
+  if (!llama_state_save_file(ctx, path.c_str(), NULL, 0))
+    Util::error_raise(vm, "%s: failed to save state to '%s'", kWho, path.c_str());
+
+  return Scheme::scm_make_bool(vm, true);
+}
+
+// Load a session file back into the context (restores KV cache + logits).
+static Scheme::ValueT scmllama_stub_llm_state_load(Scheme::VM* vm,
+                                                    Scheme::ValueT* ctx_value,
+                                                    Scheme::ValueT* path_value)
+{
+  static const char* const kWho = "llm-state-load";
+  LlmHandle* handle = Util::handletable(vm)->get(vm, ctx_value, kLlmContext, kWho);
+  llama_context* ctx = static_cast<llama_context*>(handle->ptr);
+
+  int path_len = 0;
+  const char* path_chars = Scheme::scm_get_string(vm, path_value, &path_len);
+  std::string path(path_chars ? path_chars : "", path_chars ? path_len : 0);
+
+  size_t n_token_count = 0;
+  if (!llama_state_load_file(ctx, path.c_str(), NULL, 0, &n_token_count))
+    Util::error_raise(vm, "%s: failed to load state from '%s'", kWho, path.c_str());
+
+  return Scheme::scm_make_bool(vm, true);
+}
+
 void scmllama_register_context_lib(Scheme::VM* vm)
 {
   static const Scheme::RegCProc kLib[] = {
@@ -224,6 +264,8 @@ void scmllama_register_context_lib(Scheme::VM* vm)
     Scheme::RegCProc("llm-reset",        scmllama_stub_llm_reset),
     Scheme::RegCProc("llm-perf",         scmllama_stub_llm_perf),
     Scheme::RegCProc("llm-perf-reset",   scmllama_stub_llm_perf_reset),
+    Scheme::RegCProc("llm-state-save",   scmllama_stub_llm_state_save),
+    Scheme::RegCProc("llm-state-load",   scmllama_stub_llm_state_load),
     Scheme::RegCProc(NULL, -1)
   };
   Scheme::scm_register_lib(vm, kLib);
