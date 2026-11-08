@@ -61,6 +61,7 @@
 
 (define quest-state 'not-offered)   ; not-offered -> accepted -> completed
 (define iron-ore 0)                  ; how many iron ore handed to the smith
+(define carried 0)                   ; ore the player carries, not yet handed in
 
 (define (quest-state-text)
   (case quest-state
@@ -120,15 +121,19 @@ CHAT")
         ((eq? intent 'give)
          (case quest-state
            ((accepted)
-            (begin
-              (set! iron-ore (+ iron-ore 1))
-              (if (>= iron-ore 3)
-                  (begin
-                    (set! quest-state 'completed)
-                    (cons 'accepted "收下第 3 块铁矿石，任务完成，交给玩家一把铁剑"))
-                  (cons 'accepted
-                        (string-append "收下 1 块铁矿石（"
-                                       (number->string iron-ore) " / 3）")))))
+            (cond ((<= carried 0)
+                   (cons 'rejected "玩家背上没有矿石"))
+                  (else
+                   (begin
+                     (set! carried (- carried 1))
+                     (set! iron-ore (+ iron-ore 1))
+                     (if (>= iron-ore 3)
+                         (begin
+                           (set! quest-state 'completed)
+                           (cons 'accepted "收下第 3 块铁矿石，任务完成，交给玩家一把铁剑"))
+                         (cons 'accepted
+                               (string-append "收下 1 块铁矿石（"
+                                              (number->string iron-ore) " / 3）")))))))
            ((not-offered) (cons 'rejected "玩家还没接任务，老王不能收矿石"))
            ((completed)   (cons 'rejected "任务已完成，不再收矿石"))
            (else          (cons 'ignored "未知状态"))))
@@ -191,7 +196,7 @@ CHAT")
     system-instruction "<|im_end|>\n"
     "<|im_start|>user\n"
     "当前任务状态：" (quest-state-text) "\n"
-    "玩家背包：铁矿石 x" (number->string iron-ore) "\n"
+    "玩家背包：铁矿石 x" (number->string carried) "\n"
     "刚刚的判定：玩家意图 " (intent-tag intent)
     "，Scheme 结果=" (status-text (car verdict))
     "，原因=" (cdr verdict) "\n"
@@ -333,6 +338,7 @@ CHAT")
          (display "  talk <文字>     同上\n")
          (display "  accept          强制 ACCEPT 意图（跳过分类器，便于测试）\n")
          (display "  give iron-ore   强制 GIVE 意图（跳过分类器，便于测试）\n")
+         (display "  pick iron-ore   在河边滩上捡一块铁矿石\n")
          (display "  inventory       查看背包\n")
          (display "  quest           查看任务状态\n")
          (display "  help            显示帮助\n")
@@ -340,8 +346,10 @@ CHAT")
 
         ((string=? line "inventory")
          (display "背包：铁矿石 x")
+         (display (number->string carried))
+         (display "（已交给老王 ")
          (display (number->string iron-ore))
-         (newline) #t)
+         (display " 块）\n") #t)
 
         ((string=? line "quest")
          (display "任务：") (display (quest-state-text)) (newline) #t)
@@ -351,6 +359,10 @@ CHAT")
 
         ((string=? line "give iron-ore")
          (converse-forced "给你铁矿石" 'give) #t)
+
+        ((string=? line "pick iron-ore")
+         (set! carried (+ carried 1))
+         (display "（你在河边滩上捡到一块铁矿石）\n") #t)
 
         ((or (string=? line "talk") (string-prefix? line "talk "))
          (converse (if (string=? line "talk")
@@ -364,7 +376,7 @@ CHAT")
 
 (display "=== 铁匠老王的小铺 ===\n")
 (display "你走进村子东头的铁匠铺，炉火正旺。\n")
-(display "直接说话即可，比如「我接了」「给你一块矿石」。\n")
+(display "直接说话即可，比如「我接了」「给你一块矿石」；想要矿石先「pick iron-ore」。\n")
 (display "LLM 只负责提议意图和写台词，状态由 Scheme 校验后变更。\n\n")
 
 (define (main-loop)
