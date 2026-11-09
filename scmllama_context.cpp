@@ -165,6 +165,30 @@ static Scheme::ValueT scmllama_stub_llm_kv_pos(Scheme::VM* vm,
   return Scheme::scm_make_int(vm, Util::kv_seq_used(ctx, 0));
 }
 
+// Remove KV cache cells of sequence 0 at positions [p0, p1).
+// Pass p1 = -1 to remove everything from p0 onwards (tail truncation,
+// e.g. "forget the last N tokens" before retrying a generation).
+// Returns #t if any cell was actually removed.
+// Note: removing a middle range leaves a hole; llama.cpp does not shift the
+// remaining positions down.  Prefer truncating the tail.
+static Scheme::ValueT scmllama_stub_llm_kv_remove(Scheme::VM* vm,
+                                                  Scheme::ValueT* ctx_value,
+                                                  Scheme::ValueT* p0_value,
+                                                  Scheme::ValueT* p1_value)
+{
+  static const char* const kWho = "llm-kv-remove";
+  LlmHandle* handle = Util::handletable(vm)->get(vm, ctx_value, kLlmContext, kWho);
+  llama_context* ctx = static_cast<llama_context*>(handle->ptr);
+
+  const llama_pos p0 =
+      static_cast<llama_pos>(Scheme::scm_get_int(vm, p0_value));
+  const llama_pos p1 =
+      static_cast<llama_pos>(Scheme::scm_get_int(vm, p1_value));
+
+  const bool removed = llama_memory_seq_rm(llama_get_memory(ctx), 0, p0, p1);
+  return Scheme::scm_make_bool(vm, removed);
+}
+
 // Put an integer value into the perf hash-table under the given string key.
 static void scmllama_perf_puti(Scheme::VM* vm, Scheme::ValueT* table,
                                Scheme::ValueT* keyv, Scheme::ValueT* valv,
@@ -275,6 +299,7 @@ void scmllama_register_context_lib(Scheme::VM* vm)
     Scheme::RegCProc("llm-context-info", scmllama_stub_llm_context_info),
     Scheme::RegCProc("llm-reset",        scmllama_stub_llm_reset),
     Scheme::RegCProc("llm-kv-pos",       scmllama_stub_llm_kv_pos),
+    Scheme::RegCProc("llm-kv-remove",    scmllama_stub_llm_kv_remove),
     Scheme::RegCProc("llm-perf",         scmllama_stub_llm_perf),
     Scheme::RegCProc("llm-perf-reset",   scmllama_stub_llm_perf_reset),
     Scheme::RegCProc("llm-state-save",   scmllama_stub_llm_state_save),
