@@ -189,6 +189,33 @@ static Scheme::ValueT scmllama_stub_llm_kv_remove(Scheme::VM* vm,
   return Scheme::scm_make_bool(vm, removed);
 }
 
+// Shift the positions of sequence 0 cells in [p0, p1) by `delta`.
+// p1 = -1 means "from p0 onwards".  Used to close the hole left by
+// llm-kv-remove: after removing the oldest n cells at the front, call
+// (llm-kv-shift ctx 0 -1 -n) so the remaining positions start at 0 again
+// and keep-kv can append right after them.  This is what llama-cli calls
+// "context shift"; the KV data itself is not recomputed.
+static Scheme::ValueT scmllama_stub_llm_kv_shift(Scheme::VM* vm,
+                                                 Scheme::ValueT* ctx_value,
+                                                 Scheme::ValueT* p0_value,
+                                                 Scheme::ValueT* p1_value,
+                                                 Scheme::ValueT* delta_value)
+{
+  static const char* const kWho = "llm-kv-shift";
+  LlmHandle* handle = Util::handletable(vm)->get(vm, ctx_value, kLlmContext, kWho);
+  llama_context* ctx = static_cast<llama_context*>(handle->ptr);
+
+  const llama_pos p0 =
+      static_cast<llama_pos>(Scheme::scm_get_int(vm, p0_value));
+  const llama_pos p1 =
+      static_cast<llama_pos>(Scheme::scm_get_int(vm, p1_value));
+  const llama_pos delta =
+      static_cast<llama_pos>(Scheme::scm_get_int(vm, delta_value));
+
+  llama_memory_seq_add(llama_get_memory(ctx), 0, p0, p1, delta);
+  return Scheme::scm_make_bool(vm, true);
+}
+
 // Put an integer value into the perf hash-table under the given string key.
 static void scmllama_perf_puti(Scheme::VM* vm, Scheme::ValueT* table,
                                Scheme::ValueT* keyv, Scheme::ValueT* valv,
@@ -300,6 +327,7 @@ void scmllama_register_context_lib(Scheme::VM* vm)
     Scheme::RegCProc("llm-reset",        scmllama_stub_llm_reset),
     Scheme::RegCProc("llm-kv-pos",       scmllama_stub_llm_kv_pos),
     Scheme::RegCProc("llm-kv-remove",    scmllama_stub_llm_kv_remove),
+    Scheme::RegCProc("llm-kv-shift",     scmllama_stub_llm_kv_shift),
     Scheme::RegCProc("llm-perf",         scmllama_stub_llm_perf),
     Scheme::RegCProc("llm-perf-reset",   scmllama_stub_llm_perf_reset),
     Scheme::RegCProc("llm-state-save",   scmllama_stub_llm_state_save),
