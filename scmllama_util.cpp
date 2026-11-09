@@ -57,6 +57,15 @@ const llama_vocab* Util::model_vocab(LlmHandle* handle)
   return llama_model_get_vocab(model_ptr(handle));
 }
 
+// ---- Util: KV cache ----
+
+int64_t Util::kv_seq_used(llama_context* ctx, llama_seq_id seq_id)
+{
+  const llama_pos pos_max =
+      llama_memory_seq_pos_max(llama_get_memory(ctx), seq_id);
+  return pos_max < 0 ? 0 : static_cast<int64_t>(pos_max) + 1;
+}
+
 // ---- Util: token ----
 
 llama_token Util::token_from_value(Scheme::VM* vm, Scheme::ValueT* value,

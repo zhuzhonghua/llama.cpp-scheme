@@ -153,6 +153,18 @@ static Scheme::ValueT scmllama_stub_llm_reset(Scheme::VM* vm,
   return Scheme::scm_make_bool(vm, true);
 }
 
+// Number of tokens currently held in the KV cache for sequence 0.
+// Returns 0 when the cache is empty.  Used to continue generation without
+// re-prefilling an existing prompt (keep-kv option of llm-generate).
+static Scheme::ValueT scmllama_stub_llm_kv_pos(Scheme::VM* vm,
+                                                Scheme::ValueT* value)
+{
+  static const char* const kWho = "llm-kv-pos";
+  LlmHandle* handle = Util::handletable(vm)->get(vm, value, kLlmContext, kWho);
+  llama_context* ctx = static_cast<llama_context*>(handle->ptr);
+  return Scheme::scm_make_int(vm, Util::kv_seq_used(ctx, 0));
+}
+
 // Put an integer value into the perf hash-table under the given string key.
 static void scmllama_perf_puti(Scheme::VM* vm, Scheme::ValueT* table,
                                Scheme::ValueT* keyv, Scheme::ValueT* valv,
@@ -262,6 +274,7 @@ void scmllama_register_context_lib(Scheme::VM* vm)
     Scheme::RegCProc("llm-context?",     scmllama_stub_llm_context_p),
     Scheme::RegCProc("llm-context-info", scmllama_stub_llm_context_info),
     Scheme::RegCProc("llm-reset",        scmllama_stub_llm_reset),
+    Scheme::RegCProc("llm-kv-pos",       scmllama_stub_llm_kv_pos),
     Scheme::RegCProc("llm-perf",         scmllama_stub_llm_perf),
     Scheme::RegCProc("llm-perf-reset",   scmllama_stub_llm_perf_reset),
     Scheme::RegCProc("llm-state-save",   scmllama_stub_llm_state_save),

@@ -8,6 +8,11 @@
 //   add-special   boolean  #t    prepend BOS when tokenizing the prompt
 //   parse-special boolean  #f    treat special token markers in the prompt
 //                                (e.g. <|im_start|>) as special tokens
+//   keep-kv       boolean  #f    append the prompt to the existing KV cache
+//                                instead of starting from position 0.  Use for
+//                                multi-turn dialogue: the new prompt is placed
+//                                right after the tokens already cached, so the
+//                                model sees the full conversation.
 //
 // The prompt is prefilled in one decode, then each generated token is decoded
 // one at a time.  The callback gets one string piece per token; an EOG token
@@ -52,7 +57,8 @@ static Scheme::ValueT scmllama_stub_llm_generate(Scheme::VM* vm,
                                                  Scheme::ValueT* rest)
 {
   static const char* const kWho = "llm-generate";
-  static const char* const kKeys[] = {"max-tokens", "add-special", "parse-special"};
+  static const char* const kKeys[] = {"max-tokens", "add-special",
+                                      "parse-special", "keep-kv"};
 
   Scheme::ValueT* opts = Util::option_from_rest(vm, rest, kWho);
 
@@ -80,6 +86,7 @@ static Scheme::ValueT scmllama_stub_llm_generate(Scheme::VM* vm,
 
   bool add_special = Util::option_get_bool(vm, opts, "add-special", true, kWho);
   bool parse_special = Util::option_get_bool(vm, opts, "parse-special", false, kWho);
+  bool keep_kv = Util::option_get_bool(vm, opts, "keep-kv", false, kWho);
 
   std::vector<llama_token> tokens = Util::tokenize_text(
       vm, vocab, prompt, prompt_len, add_special, parse_special, kWho);
@@ -92,10 +99,16 @@ static Scheme::ValueT scmllama_stub_llm_generate(Scheme::VM* vm,
     Util::error_raise(vm, "%s: failed to allocate batch", kWho);
 
   // Prefill the whole prompt; only the last position needs logits.
+  // With keep-kv, the prompt is appended right after the tokens already in the
+  // KV cache so the model sees the full conversation history.
+  llama_pos base_pos = 0;
+  if (keep_kv)
+    base_pos = static_cast<llama_pos>(Util::kv_seq_used(ctx, 0));
+
   for (size_t i = 0; i < tokens.size(); ++i)
   {
     batch.token[i] = tokens[i];
-    batch.pos[i] = static_cast<llama_pos>(i);
+    batch.pos[i] = base_pos + static_cast<llama_pos>(i);
     batch.n_seq_id[i] = 1;
     batch.seq_id[i][0] = 0;
     batch.logits[i] = (i == tokens.size() - 1) ? 1 : 0;
@@ -105,7 +118,7 @@ static Scheme::ValueT scmllama_stub_llm_generate(Scheme::VM* vm,
   if (llama_decode(ctx, batch) != 0)
     Util::error_raise(vm, "%s: prefill decode failed", kWho);
 
-  llama_pos n_past = static_cast<llama_pos>(tokens.size());
+  llama_pos n_past = base_pos + static_cast<llama_pos>(tokens.size());
   std::string text;
   int32_t generated = 0;
 

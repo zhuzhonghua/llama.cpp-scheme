@@ -23,6 +23,7 @@ class Runtime;       // defined in scmllama.h
 //   runtime   recover the Runtime from a VM
 //   handle_*  handle lookup shortcuts (one call = get + kind check)
 //   model_*   handle -> llama object accessors
+//   kv_*      KV cache introspection
 //   token_*   token id parsing
 class Util {
 public:
@@ -44,6 +45,12 @@ public:
 
   static const llama_model* model_ptr(LlmHandle* handle);
   static const llama_vocab* model_vocab(LlmHandle* handle);
+
+  // --- KV cache introspection ---
+
+  // Number of tokens currently held in the KV cache for `seq_id` (0 when the
+  // sequence is empty).  Equals the next free position for that sequence.
+  static int64_t kv_seq_used(llama_context* ctx, llama_seq_id seq_id);
 
   // --- token parsing ---
 
