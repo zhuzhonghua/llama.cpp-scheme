@@ -43,6 +43,13 @@ public:
 
   // --- model accessors ---
 
+  // One-call model accessors: handle lookup + kind check + dereference.
+  static const llama_model* model_ptr(Scheme::VM* vm, Scheme::ValueT* value,
+                                      const char* who);
+  static const llama_vocab* model_vocab(Scheme::VM* vm, Scheme::ValueT* value,
+                                        const char* who);
+
+  // Accessors for callers that already hold a checked handle.
   static const llama_model* model_ptr(LlmHandle* handle);
   static const llama_vocab* model_vocab(LlmHandle* handle);
 

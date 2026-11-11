@@ -29,8 +29,7 @@ static Scheme::ValueT scmllama_stub_llm_context_new(Scheme::VM* vm,
   };
 
   Scheme::ValueT* opts = Util::option_from_rest(vm, rest, kWho);
-  LlmHandle* model_handle = Util::model_handle(vm, value, kWho);
-  const llama_model* model = Util::model_ptr(model_handle);
+  const llama_model* model = Util::model_ptr(vm, value, kWho);
 
   Util::option_require_known(
       vm, opts, kKeys,

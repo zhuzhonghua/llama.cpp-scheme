@@ -47,6 +47,18 @@ LlmHandle* Util::model_handle(Scheme::VM* vm, Scheme::ValueT* value,
 
 // ---- Util: model accessors ----
 
+const llama_model* Util::model_ptr(Scheme::VM* vm, Scheme::ValueT* value,
+                                   const char* who)
+{
+  return model_ptr(model_handle(vm, value, who));
+}
+
+const llama_vocab* Util::model_vocab(Scheme::VM* vm, Scheme::ValueT* value,
+                                     const char* who)
+{
+  return model_vocab(model_handle(vm, value, who));
+}
+
 const llama_model* Util::model_ptr(LlmHandle* handle)
 {
   return static_cast<const llama_model*>(handle->ptr);

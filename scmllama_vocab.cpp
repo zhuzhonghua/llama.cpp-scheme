@@ -28,8 +28,7 @@ static Scheme::ValueT scmllama_stub_llm_tokenize(Scheme::VM* vm,
   static const char* const kKeys[] = {"add-special", "parse-special"};
 
   Scheme::ValueT* opts = Util::option_from_rest(vm, rest, kWho);
-  LlmHandle* handle = Util::model_handle(vm, value, kWho);
-  const llama_vocab* vocab = Util::model_vocab(handle);
+  const llama_vocab* vocab = Util::model_vocab(vm, value, kWho);
 
   int text_len = 0;
   const char* text = Scheme::scm_get_string(vm, text_value, &text_len);
@@ -64,8 +63,7 @@ static Scheme::ValueT scmllama_stub_llm_detokenize(Scheme::VM* vm,
   static const char* const kKeys[] = {"remove-special", "unparse-special"};
 
   Scheme::ValueT* opts = Util::option_from_rest(vm, rest, kWho);
-  LlmHandle* handle = Util::model_handle(vm, value, kWho);
-  const llama_vocab* vocab = Util::model_vocab(handle);
+  const llama_vocab* vocab = Util::model_vocab(vm, value, kWho);
 
   std::vector<llama_token> tokens = Util::token_list(vm, tokens_value, kWho);
 
@@ -114,8 +112,7 @@ static Scheme::ValueT scmllama_stub_llm_token_to_piece(
   static const char* const kKeys[] = {"lstrip", "special"};
 
   Scheme::ValueT* opts = Util::option_from_rest(vm, rest, kWho);
-  LlmHandle* handle = Util::model_handle(vm, value, kWho);
-  const llama_vocab* vocab = Util::model_vocab(handle);
+  const llama_vocab* vocab = Util::model_vocab(vm, value, kWho);
   llama_token token = Util::token_from_value(vm, token_value, kWho);
 
   Util::option_require_known(
@@ -148,8 +145,7 @@ static Scheme::ValueT scmllama_stub_llm_eog_p(Scheme::VM* vm,
                                               Scheme::ValueT* value,
                                               Scheme::ValueT* token_value)
 {
-  LlmHandle* handle = Util::model_handle(vm, value, "llm-eog?");
-  const llama_vocab* vocab = Util::model_vocab(handle);
+  const llama_vocab* vocab = Util::model_vocab(vm, value, "llm-eog?");
   llama_token token = Util::token_from_value(vm, token_value, "llm-eog?");
   return Scheme::scm_make_bool(vm, llama_vocab_is_eog(vocab, token));
 }

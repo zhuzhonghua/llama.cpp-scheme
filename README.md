@@ -105,6 +105,24 @@ All functions are registered as native Scheme procedures (prefix `llm-`). Option
 | --- | --- |
 | `(llm-generate ctx sampler prompt callback [options...])` | Synchronous generation loop; returns generated text, calls `callback` per token piece, stops on EOG or `max-tokens` |
 
+### Chat templates
+
+| Function | Description |
+| --- | --- |
+| `(llm-chat-template-apply model messages [options...])` | Render `((role . content) ...)` messages into a prompt with the model's chat template (or an explicit one) |
+| `(llm-chat-templates)` | Vector of template names understood by llama.cpp (`chatml`, `llama3`, `gemma`, ...) |
+
+```scheme
+(llm-chat-template-apply m
+  '(("system" . "You are a helpful assistant.")
+    ("user" . "Hello!")))
+;; => "<|im_start|>system\n...<|im_end|>\n<|im_start|>user\nHello!<|im_end|>\n<|im_start|>assistant\n"
+
+;; Options: (template . "chatml") picks a built-in name or template source;
+;; (add-assistant . #f) stops after the last message instead of opening an
+;; assistant turn.
+```
+
 ## License
 
 See [LICENSE](LICENSE).

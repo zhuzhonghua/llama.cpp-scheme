@@ -153,9 +153,8 @@ static Scheme::ValueT scmllama_stub_llm_model_p(Scheme::VM* vm,
 static Scheme::ValueT scmllama_stub_llm_model_info(Scheme::VM* vm,
                                                    Scheme::ValueT* value)
 {
-  LlmHandle* handle = Util::model_handle(vm, value, "llm-model-info");
-  const llama_model* model = Util::model_ptr(handle);
-  const llama_vocab* vocab = Util::model_vocab(handle);
+  const llama_model* model = Util::model_ptr(vm, value, "llm-model-info");
+  const llama_vocab* vocab = Util::model_vocab(vm, value, "llm-model-info");
 
   Sgcvar1(vm, table);
   *table = Scheme::scm_make_table(vm);

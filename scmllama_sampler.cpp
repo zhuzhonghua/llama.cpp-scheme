@@ -45,8 +45,8 @@ static Scheme::ValueT scmllama_stub_llm_sampler_new(Scheme::VM* vm,
   };
 
   Scheme::ValueT* opts = Util::option_from_rest(vm, rest, kWho);
-  LlmHandle* model_handle = Util::model_handle(vm, value, kWho);
-  int32_t n_vocab = llama_vocab_n_tokens(Util::model_vocab(model_handle));
+  const llama_vocab* vocab = Util::model_vocab(vm, value, kWho);
+  int32_t n_vocab = llama_vocab_n_tokens(vocab);
 
   Util::option_require_known(
       vm, opts, kKeys,
