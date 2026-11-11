@@ -17,6 +17,8 @@
 //   penalty-repeat  number   1.0
 //   penalty-freq    number   0.0
 //   penalty-present number   0.0
+//   grammar         string  none     GBNF source; constrains sampled tokens
+//   grammar-root    string  "root"   start symbol inside the grammar
 
 #include "scmllama_util.h"
 #include "scmllama_handle.h"
@@ -41,7 +43,8 @@ static Scheme::ValueT scmllama_stub_llm_sampler_new(Scheme::VM* vm,
   static const char* const kKeys[] = {
     "greedy", "seed", "temp",
     "top-k", "top-p", "min-p",
-    "penalty-last-n", "penalty-repeat", "penalty-freq", "penalty-present"
+    "penalty-last-n", "penalty-repeat", "penalty-freq", "penalty-present",
+    "grammar", "grammar-root"
   };
 
   Scheme::ValueT* opts = Util::option_from_rest(vm, rest, kWho);
@@ -85,10 +88,56 @@ static Scheme::ValueT scmllama_stub_llm_sampler_new(Scheme::VM* vm,
   float penalty_present =
       Util::option_get_float(vm, opts, "penalty-present", 0.0f, kWho);
 
+  // Grammar source and start symbol.  The sampler is created below, once the
+  // chain exists, because it needs the model vocabulary.
+  std::string grammar_storage;
+  const char* grammar_str = NULL;
+  Scheme::ValueT* grammar_slot = Util::option_find(vm, opts, "grammar", kWho);
+  if (grammar_slot)
+  {
+    if (!Scheme::scm_is_string(vm, grammar_slot))
+      Util::error_raise(vm, "%s: option 'grammar' expects a string, got %s",
+                        kWho, Scheme::scm_typename(vm, grammar_slot));
+    int len = 0;
+    const char* chars = Scheme::scm_get_string(vm, grammar_slot, &len);
+    grammar_storage.assign(chars ? chars : "", chars ? len : 0);
+    if (grammar_storage.empty())
+      Util::error_raise(vm, "%s: option 'grammar' is empty", kWho);
+    grammar_str = grammar_storage.c_str();
+  }
+
+  std::string grammar_root_storage("root");
+  Scheme::ValueT* grammar_root_slot =
+      Util::option_find(vm, opts, "grammar-root", kWho);
+  if (grammar_root_slot)
+  {
+    if (!Scheme::scm_is_string(vm, grammar_root_slot))
+      Util::error_raise(vm, "%s: option 'grammar-root' expects a string, got %s",
+                        kWho, Scheme::scm_typename(vm, grammar_root_slot));
+    int len = 0;
+    const char* chars = Scheme::scm_get_string(vm, grammar_root_slot, &len);
+    grammar_root_storage.assign(chars ? chars : "", chars ? len : 0);
+    if (grammar_root_storage.empty())
+      Util::error_raise(vm, "%s: option 'grammar-root' is empty", kWho);
+  }
+
   llama_sampler_chain_params sparams = llama_sampler_chain_default_params();
   llama_sampler* chain = llama_sampler_chain_init(sparams);
   if (!chain)
     Util::error_raise(vm, "%s: failed to create sampler chain", kWho);
+
+  // Mask disallowed tokens before any distribution filter runs.
+  if (grammar_str)
+  {
+    llama_sampler* grammar = llama_sampler_init_grammar(
+        vocab, grammar_str, grammar_root_storage.c_str());
+    if (!grammar)
+    {
+      llama_sampler_free(chain);
+      Util::error_raise(vm, "%s: failed to parse grammar", kWho);
+    }
+    llama_sampler_chain_add(chain, grammar);
+  }
 
   if (penalty_last_n > 0)
     llama_sampler_chain_add(chain, llama_sampler_init_penalties(

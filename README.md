@@ -94,10 +94,24 @@ All functions are registered as native Scheme procedures (prefix `llm-`). Option
 
 | Function | Description |
 | --- | --- |
-| `(llm-sampler-new model [options...])` | Create a sampler chain (penalties → top-k → top-p → min-p → temp → greedy/dist) |
+| `(llm-sampler-new model [options...])` | Create a sampler chain (grammar → penalties → top-k → top-p → min-p → temp → greedy/dist) |
 | `(llm-sampler-sample sampler ctx)` | Sample the next token from logits |
 | `(llm-sampler-free sampler)` | Release a sampler |
 | `(llm-sampler? obj)` | Type predicate |
+
+Constrain generation with a [GBNF grammar](https://github.com/ggml-org/llama.cpp/blob/master/grammars/README.md):
+
+```scheme
+(define smpl
+  (llm-sampler-new m
+    '((greedy . #t)
+      (grammar . "root ::= \"yes\" | \"no\""))))
+
+(llm-generate ctx smpl "Answer yes or no: is the sky blue?" (lambda (p) #t))
+;; => "yes" or "no", nothing else
+```
+
+`grammar-root` (default `"root"`) selects the start symbol. A grammar sampler keeps a pointer to the model vocabulary, so keep the model alive while the sampler is in use.
 
 ### Generation
 
