@@ -35,6 +35,8 @@ git submodule update --init --recursive   # llama.cpp + dummyscheme
 ./build/scmllama test/npc-demo.scm        # interactive NPC + quest state machine
 ```
 
+`test/npc-demo.scm` prints English by default; set `*lang*` to `'zh` at the top of the file for Chinese (the prompts switch with it).
+
 `./build.sh Debug`, `./build.sh Release --clean`, and extra CMake flags are accepted. If huggingface.co is unreachable, `download-model.sh` falls back to hf-mirror.com; set `https_proxy` to route the download through a proxy.
 
 ## API

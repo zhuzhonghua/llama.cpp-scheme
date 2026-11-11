@@ -17,6 +17,10 @@
 ;; The model can propose, but it can never change state — only Scheme does,
 ;; and only when the transition is legal.
 ;;
+;; Output is English by default; set *lang* to 'zh below for Chinese. Prompts
+;; follow the switch, because output language is decided by the prompt, not by
+;; what the player types.
+;;
 ;; Commands (free text also works — it is classified as an intent):
 ;;   <any text>      talk to the NPC in natural language
 ;;   talk <text>     same, kept for habit
@@ -28,6 +32,15 @@
 ;;   quit            exit
 
 (require "test.common")
+
+;; ---- language -------------------------------------------------------------
+
+;; UI and prompt language: 'en (default) or 'zh. The prompts follow this switch
+;; because output language is decided by the prompt, not by the player input:
+;; English input with a Chinese prompt still answers in Chinese.
+(define *lang* 'en)
+
+(define (t zh en) (if (eq? *lang* 'en) en zh))
 
 ;; ---- model / context / samplers ------------------------------------------
 
@@ -47,16 +60,21 @@
 
 ;; ---- NPC definition -------------------------------------------------------
 
-(define npc-name "老王")
+(define npc-name (t "老王" "Wang"))
 
 (define persona
-  "你正在扮演老王，村子东头的铁匠。老王性格豪爽、说话直来直去，
+  (t "你正在扮演老王，村子东头的铁匠。老王性格豪爽、说话直来直去，
 常用『哼』『嘿』『得嘞』这类口头语。他正打算给村里的守卫打一把剑，
-但手头缺铁矿石，正为此发愁。")
+但手头缺铁矿石，正为此发愁。"
+     "You are Wang, the blacksmith at the east end of the village. Blunt and
+loud, fond of grunts like \"hmph\" and \"hah\". You are forging a sword for
+the village guard but have run out of iron ore, and it is eating at you."))
 
 (define system-instruction
-  "你就是老王。只输出老王对玩家说的一句话台词，不要加引号、不要加『老王：』前缀，
-不要使用 <think> 标签、不要思考、不要分析。不要替玩家说话。")
+  (t "你就是老王。只输出老王对玩家说的一句话台词，不要加引号、不要加『老王：』前缀，
+不要使用 <think> 标签、不要思考、不要分析。不要替玩家说话。"
+     "You are Wang. Output one line of dialogue, no quotes, no \"Wang:\" prefix,
+no <think> tags, no analysis, never speak for the player."))
 
 ;; ---- quest state (deterministic, Scheme-owned) ----------------------------
 
@@ -66,17 +84,21 @@
 
 (define (quest-state-text)
   (case quest-state
-    ((not-offered) "任务尚未接受")
-    ((accepted)    (string-append
-                    "已接受任务：收集 3 块铁矿石（已交 "
-                    (number->string iron-ore) " / 3）"))
-    ((completed)   "任务已完成，老王已赠予你一把铁剑")
-    (else "未知")))
+    ((not-offered) (t "任务尚未接受" "quest not accepted yet"))
+    ((accepted)    (t (string-append
+                      "已接受任务：收集 3 块铁矿石（已交 "
+                      (number->string iron-ore) " / 3）")
+                     (string-append
+                      "quest accepted: bring 3 iron ore (handed in "
+                      (number->string iron-ore) " / 3)")))
+    ((completed)   (t "任务已完成，老王已赠予你一把铁剑"
+                     "quest done, Wang gave you an iron sword"))
+    (else (t "未知" "unknown"))))
 
 ;; ---- intent: the LLM proposes, Scheme judges ------------------------------
 
 (define intent-system
-  "你是意图分类器。只输出一个标签：ACCEPT、GIVE 或 CHAT，不要输出任何其它内容。
+  (t "你是意图分类器。只输出一个标签：ACCEPT、GIVE 或 CHAT，不要输出任何其它内容。
 ACCEPT：玩家接受任务（好、我接了、没问题、行、成交）
 GIVE：玩家把物品交给老王（给你、拿去、这块矿石给你）
 CHAT：其它（打招呼、提问、闲聊、拒绝）
@@ -87,7 +109,19 @@ ACCEPT
 玩家：给你一块矿石
 GIVE
 玩家：今天天气不错
-CHAT")
+CHAT"
+     "You are an intent classifier. Output exactly one label: ACCEPT, GIVE or CHAT.
+ACCEPT: the player accepts the quest (sure, I'm in, fine, deal)
+GIVE: the player hands an item to Wang (here you go, take this, here's ore)
+CHAT: anything else (greeting, question, small talk, refusal)
+
+Examples:
+Player: I'll take the job
+ACCEPT
+Player: here is some ore
+GIVE
+Player: nice weather today
+CHAT"))
 
 (define (classify-intent text)
   (llm-reset ctx)
@@ -115,15 +149,15 @@ CHAT")
            ((not-offered)
             (begin
               (set! quest-state 'accepted)
-              (cons 'accepted "玩家接受了任务")))
-           ((accepted)  (cons 'ignored "任务已经接过了"))
-           ((completed) (cons 'rejected "任务早已完成"))
-           (else        (cons 'ignored "未知状态"))))
+              (cons 'accepted 'quest-taken)))
+           ((accepted)  (cons 'ignored 'already-taken))
+           ((completed) (cons 'rejected 'quest-over))
+           (else        (cons 'ignored 'unknown))))
         ((eq? intent 'give)
          (case quest-state
            ((accepted)
             (cond ((<= carried 0)
-                   (cons 'rejected "玩家背上没有矿石"))
+                   (cons 'rejected 'no-ore))
                   (else
                    (begin
                      (set! carried (- carried 1))
@@ -131,14 +165,32 @@ CHAT")
                      (if (>= iron-ore 3)
                          (begin
                            (set! quest-state 'completed)
-                           (cons 'accepted "收下第 3 块铁矿石，任务完成，交给玩家一把铁剑"))
+                           (cons 'accepted 'gave-3))
                          (cons 'accepted
-                               (string-append "收下 1 块铁矿石（"
-                                              (number->string iron-ore) " / 3）")))))))
-           ((not-offered) (cons 'rejected "玩家还没接任务，老王不能收矿石"))
-           ((completed)   (cons 'rejected "任务已完成，不再收矿石"))
-           (else          (cons 'ignored "未知状态"))))
-        (else (cons 'ignored "闲聊，不影响状态"))))
+                               (if (= iron-ore 1) 'gave-1 'gave-2)))))))
+           ((not-offered) (cons 'rejected 'not-accepted))
+           ((completed)   (cons 'rejected 'no-more-ore))
+           (else          (cons 'ignored 'unknown))))
+        (else (cons 'ignored 'chat))))
+
+;; Reason keys are language-neutral: the verdict line, the prompt and the
+;; scripted line all render the same key, so no text is matched anywhere.
+(define (reason-text key)
+  (case key
+    ((quest-taken)   (t "玩家接受了任务" "player accepted the quest"))
+    ((already-taken) (t "任务已经接过了" "the quest was already taken"))
+    ((quest-over)    (t "任务早已完成" "the quest was finished long ago"))
+    ((no-ore)        (t "玩家背上没有矿石" "no ore in the player inventory"))
+    ((not-accepted)  (t "玩家还没接任务，老王不能收矿石"
+                       "quest not accepted yet, Wang cannot take ore"))
+    ((no-more-ore)   (t "任务已完成，不再收矿石"
+                       "quest complete, no more ore accepted"))
+    ((gave-1)        (t "收下 1 块铁矿石（1 / 3）" "took one ore (1 / 3)"))
+    ((gave-2)        (t "收下 1 块铁矿石（2 / 3）" "took one ore (2 / 3)"))
+    ((gave-3)        (t "收下第 3 块铁矿石，任务完成，交给玩家一把铁剑"
+                       "third ore taken, quest complete, sword handed over"))
+    ((unknown)       (t "未知状态" "unknown state"))
+    (else            (t "闲聊，不影响状态" "small talk, no state change"))))
 
 (define (intent-tag intent)
   (case intent
@@ -148,19 +200,18 @@ CHAT")
 
 (define (status-text status)
   (case status
-    ((accepted) "校验通过")
-    ((rejected) "校验拒绝")
-    (else       "无需处理")))
+    ((accepted) (t "校验通过" "accepted"))
+    ((rejected) (t "校验拒绝" "rejected"))
+    (else       (t "无需处理" "no state change"))))
 
 ;; Visible proof that the model proposes and Scheme decides.
 (define (report-verdict intent verdict)
-  (display "  · LLM 判定意图 ")
-  (display (intent-tag intent))
-  (display " → Scheme ")
-  (display (status-text (car verdict)))
-  (display "（")
-  (display (cdr verdict))
-  (display "）\n")
+  (display (t (string-append "  · LLM 判定意图 " (intent-tag intent)
+                             " → Scheme " (status-text (car verdict))
+                             "（" (reason-text (cdr verdict)) "）\n")
+              (string-append "  · LLM proposed " (intent-tag intent)
+                             " -> Scheme " (status-text (car verdict))
+                             " (" (reason-text (cdr verdict)) ")\n")))
   (flush-output))
 
 ;; ---- dialogue history -----------------------------------------------------
@@ -179,16 +230,19 @@ CHAT")
 (define (history-text)
   (apply string-append
          (map (lambda (pair)
-                (string-append (car pair) "：" (cdr pair) "\n"))
+                (string-append (car pair) (t "：" ": ") (cdr pair) "\n"))
               (reverse history))))
 
 ;; ---- prompt builder -------------------------------------------------------
 
 (define (verdict-hint status)
   (case status
-    ((accepted) "老王的请求得到了满足，简短回应，语气高兴。")
-    ((rejected) "老王必须拒绝，例如：不行，你还没接这活儿呢。")
-    (else       "只是闲聊，老王正常回应即可。")))
+    ((accepted) (t "老王的请求得到了满足，简短回应，语气高兴。"
+                   "Wang got what he asked for. One short, pleased line."))
+    ((rejected) (t "老王必须拒绝，例如：不行，你还没接这活儿呢。"
+                   "Wang must refuse. One short refusal, no new reasons."))
+    (else       (t "只是闲聊，老王正常回应即可。"
+                   "Just small talk. Answer normally."))))
 
 (define (build-prompt player-input intent verdict)
   (string-append
@@ -196,15 +250,15 @@ CHAT")
     persona "\n"
     system-instruction "<|im_end|>\n"
     "<|im_start|>user\n"
-    "当前任务状态：" (quest-state-text) "\n"
-    "玩家背包：铁矿石 x" (number->string carried) "\n"
-    "刚刚的判定：玩家意图 " (intent-tag intent)
-    "，Scheme 结果=" (status-text (car verdict))
-    "，原因=" (cdr verdict) "\n"
+    (t "当前任务状态：" "Quest state: ") (quest-state-text) "\n"
+    (t "玩家背包：铁矿石 x" "Player inventory: iron ore x") (number->string carried) "\n"
+    (t "刚刚的判定：玩家意图 " "Verdict: player intent ") (intent-tag intent)
+    (t "，Scheme 结果=" ", scheme result=") (status-text (car verdict))
+    (t "，原因=" ", reason=") (reason-text (cdr verdict)) "\n"
     (verdict-hint (car verdict)) "\n\n"
-    "对话记录：\n"
+    (t "对话记录：\n" "Transcript:\n")
     (history-text)
-    "玩家：" player-input "<|im_end|>\n"
+    (t "玩家：" "Player: ") player-input "<|im_end|>\n"
     ;; Qwen3 "thinking off" chat template (enable_thinking=false): pre-fill
     ;; an empty <think></think> block so the model answers directly instead
     ;; of opening its own block, which derails a 0.6B model into garbage.
@@ -260,7 +314,7 @@ CHAT")
             (else (loop (+ i 1)))))))
 
 ;; Drop a leading speaker label the model sometimes echoes back, e.g.
-;; "老王：", "王：", or a garbled variant. Any colon within the first
+;; "Wang:", "Wang :", or the Chinese "老王：". Any colon within the first
 ;; 12 characters is treated as the label separator.
 (define (strip-speaker text)
   (let loop ((s text))
@@ -292,27 +346,28 @@ CHAT")
 ;; apply-intent returned; the model keeps every turn that does not change
 ;; state. Each turn prints which path produced the line.
 
-(define (scripted-line status reason)
-  (case status
-    ((accepted)
-     (cond ((string-index reason "任务完成") "齐了！剑给你，路上当心，哼。")
-           ((string-index reason "1 / 3")   "一块。还差两块，快去。")
-           ((string-index reason "2 / 3")   "两块了。再来一块就够。")
-           (else                            "得嘞！河边滩上敲三块矿石，凑齐了给我。")))
-    ((rejected)
-     (cond ((string-index reason "还没接任务")   "先接活儿，再谈矿石。")
-           ((string-index reason "背上没有矿石") "你手里空着呢。河边滩上多的是，先去捡。")
-           ((string-index reason "不再收矿石")   "齐了，别再往我这儿塞。")
-           ((string-index reason "任务早已完成") "活儿早干完了，你还想接什么？")
-           (else                                "这可不行。")))
-    (else "行，我知道了。")))
+(define (scripted-line reason)
+  (case reason
+    ((quest-taken)  (t "得嘞！河边滩上敲三块矿石，凑齐了给我。"
+                       "Right. Three ore from the riverbank - go."))
+    ((gave-1)       (t "一块。还差两块，快去。" "One. Two more to go."))
+    ((gave-2)       (t "两块了。再来一块就够。" "Two. One more and you are done."))
+    ((gave-3)       (t "齐了！剑给你，路上当心，哼。"
+                       "That is three. Here is your sword - mind the road."))
+    ((not-accepted) (t "先接活儿，再谈矿石。" "Take the job first, then we talk ore."))
+    ((no-ore)       (t "你手里空着呢。河边滩上多的是，先去捡。"
+                       "Your hands are empty. Riverbank is full of it - go dig."))
+    ((no-more-ore)  (t "齐了，别再往我这儿塞。" "That is enough, stop pushing ore at me."))
+    ((quest-over)   (t "活儿早干完了，你还想接什么？"
+                       "Job is long done. What are you taking on?"))
+    (else           (t "这可不行。" "No, that won't do."))))
 
 ;; One conversational turn.
 
 (define (reply-scripted line player-input)
   (display "  · line source scripted\n")
-  (display npc-name) (display "：") (display line) (newline)
-  (history-add "玩家" player-input)
+  (display npc-name) (display (t "：" ": ")) (display line) (newline)
+  (history-add (t "玩家" "Player") player-input)
   (history-add npc-name line)
   line)
 
@@ -321,13 +376,13 @@ CHAT")
   (llm-reset ctx)
   ;; Print the speaker prefix immediately so the user sees the game is
   ;; working while the model generates (generation is silent otherwise).
-  (display npc-name) (display "：") (flush-output)
+  (display npc-name) (display (t "：" ": ")) (flush-output)
   (let ((raw (llm-generate ctx smpl (build-prompt player-input intent verdict)
                            (lambda (piece) #t)
                            '((max-tokens . 200) (parse-special . #t)))))
     (let ((text (strip-speaker (string-trim (strip-think raw)))))
       (display text) (newline)
-      (history-add "玩家" player-input)
+      (history-add (t "玩家" "Player") player-input)
       (history-add npc-name text)
       text)))
 
@@ -340,7 +395,7 @@ CHAT")
       (report-verdict intent verdict)
       (if (eq? (car verdict) 'ignored)
           (reply-generated player-input intent verdict)
-          (reply-scripted (scripted-line (car verdict) (cdr verdict)) player-input)))))
+          (reply-scripted (scripted-line (cdr verdict)) player-input)))))
 
 ;; For the explicit accept / give commands: skip the classifier.
 (define (converse-forced player-input intent)
@@ -348,7 +403,7 @@ CHAT")
     (report-verdict intent verdict)
     (if (eq? (car verdict) 'ignored)
         (reply-generated player-input intent verdict)
-        (reply-scripted (scripted-line (car verdict) (cdr verdict)) player-input))))
+        (reply-scripted (scripted-line (cdr verdict)) player-input))))
 
 ;; ---- command parsing ------------------------------------------------------
 
@@ -368,43 +423,48 @@ CHAT")
   (cond ((string=? line "") #t)
 
         ((or (string=? line "quit") (string=? line "exit"))
-         (display "再见。\n") #f)
+         (display (t "再见。\n" "bye.\n")) #f)
 
         ((string=? line "help")
-         (display "可用命令：\n")
-         (display "  <任意文字>      直接和老王说话（LLM 判意图，Scheme 校验）\n")
-         (display "  talk <文字>     同上\n")
-         (display "  accept          强制 ACCEPT 意图（跳过分类器，便于测试）\n")
-         (display "  give iron-ore   强制 GIVE 意图（跳过分类器，便于测试）\n")
-         (display "  pick iron-ore   在河边滩上捡一块铁矿石\n")
-         (display "  inventory       查看背包\n")
-         (display "  quest           查看任务状态\n")
-         (display "  help            显示帮助\n")
-         (display "  quit            退出\n") #t)
+         (display (t "可用命令：\n" "Commands:\n"))
+         (display (t "  <任意文字>      直接和老王说话（LLM 判意图，Scheme 校验）\n"
+                     "  <any text>      talk to Wang (LLM proposes, Scheme judges)\n"))
+         (display (t "  talk <文字>     同上\n" "  talk <text>     same\n"))
+         (display (t "  accept          强制 ACCEPT 意图（跳过分类器，便于测试）\n"
+                     "  accept          force ACCEPT (skips the classifier)\n"))
+         (display (t "  give iron-ore   强制 GIVE 意图（跳过分类器，便于测试）\n"
+                     "  give iron-ore   force GIVE (skips the classifier)\n"))
+         (display (t "  pick iron-ore   在河边滩上捡一块铁矿石\n"
+                     "  pick iron-ore   gather one ore at the riverbank\n"))
+         (display (t "  inventory       查看背包\n" "  inventory       show what you carry\n"))
+         (display (t "  quest           查看任务状态\n" "  quest           show the quest state\n"))
+         (display (t "  help            显示帮助\n" "  help            this list\n"))
+         (display (t "  quit            退出\n" "  quit            exit\n")) #t)
 
         ((string=? line "inventory")
-         (display "背包：铁矿石 x")
+         (display (t "背包：铁矿石 x" "Inventory: iron ore x"))
          (display (number->string carried))
-         (display "（已交给老王 ")
+         (display (t "（已交给老王 " " (handed in "))
          (display (number->string iron-ore))
-         (display " 块）\n") #t)
+         (display (t " 块）\n" ")\n")) #t)
 
         ((string=? line "quest")
-         (display "任务：") (display (quest-state-text)) (newline) #t)
+         (display (t "任务：" "Quest: ")) (display (quest-state-text)) (newline) #t)
 
         ((string=? line "accept")
-         (converse-forced "我接受你的请求" 'accept) #t)
+         (converse-forced (t "我接受你的请求" "I'll take the job") 'accept) #t)
 
         ((string=? line "give iron-ore")
-         (converse-forced "给你铁矿石" 'give) #t)
+         (converse-forced (t "给你铁矿石" "here is some ore") 'give) #t)
 
         ((string=? line "pick iron-ore")
          (set! carried (+ carried 1))
-         (display "（你在河边滩上捡到一块铁矿石）\n") #t)
+         (display (t "（你在河边滩上捡到一块铁矿石）\n"
+                    "(picked up one iron ore at the riverbank)\n")) #t)
 
         ((or (string=? line "talk") (string-prefix? line "talk "))
          (converse (if (string=? line "talk")
-                       "你好"
+                       (t "你好" "hello")
                        (substring line 5 (string-length line)))) #t)
 
         ;; Anything else is natural language for the NPC.
@@ -412,16 +472,19 @@ CHAT")
 
 ;; ---- main loop ------------------------------------------------------------
 
-(display "=== 铁匠老王的小铺 ===\n")
-(display "你走进村子东头的铁匠铺，炉火正旺。\n")
-(display "直接说话即可，比如「我接了」「给你一块矿石」；想要矿石先「pick iron-ore」。\n")
-(display "LLM 只负责提议意图和闲聊台词；里程碑台词写死，状态由 Scheme 校验后变更。\n\n")
+(display (t "=== 铁匠老王的小铺 ===\n" "=== Wang's forge ===\n"))
+(display (t "你走进村子东头的铁匠铺，炉火正旺。\n"
+            "The forge at the east end of the village, coals still hot.\n"))
+(display (t "直接说话即可，比如「我接了」「给你一块矿石」；想要矿石先「pick iron-ore」。\n"
+            "Just talk: \"I'll take the job\", \"here is some ore\". Use \"pick iron-ore\" to gather.\n"))
+(display (t "LLM 只负责提议意图和闲聊台词；里程碑台词写死，状态由 Scheme 校验后变更。\n\n"
+            "The model proposes and chats; milestone lines are scripted, and only Scheme moves state.\n\n"))
 
 (define (main-loop)
   (display "> ") (flush-output)
   (let ((line (read-line)))
     (cond ((not line)
-           (display "\n再见。\n")
+           (display (t "\n再见。\n" "\nbye.\n"))
            #f)
           ((handle-command line) (main-loop))
           (else #t))))
