@@ -32,23 +32,6 @@
 
 namespace scmllama {
 
-namespace {
-
-// Frees the batch on scope exit, including when a Scheme error unwinds.
-struct BatchGuard
-{
-  llama_batch& batch;
-
-  explicit BatchGuard(llama_batch& b) : batch(b) {}
-
-  ~BatchGuard() { llama_batch_free(batch); }
-
-  BatchGuard(const BatchGuard&) = delete;
-  BatchGuard& operator=(const BatchGuard&) = delete;
-};
-
-} // namespace
-
 static Scheme::ValueT scmllama_stub_llm_generate(Scheme::VM* vm,
                                                  Scheme::ValueT* ctx_value,
                                                  Scheme::ValueT* smpl_value,
@@ -62,9 +45,7 @@ static Scheme::ValueT scmllama_stub_llm_generate(Scheme::VM* vm,
 
   Scheme::ValueT* opts = Util::option_from_rest(vm, rest, kWho);
 
-  LlmHandle* ctx_handle =
-      Util::handletable(vm)->get(vm, ctx_value, kLlmContext, kWho);
-  llama_context* ctx = static_cast<llama_context*>(ctx_handle->ptr);
+  llama_context* ctx = Util::context_ptr(vm, ctx_value, kWho);
 
   LlmHandle* smpl_handle =
       Util::handletable(vm)->get(vm, smpl_value, kLlmSampler, kWho);

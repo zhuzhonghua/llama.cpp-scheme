@@ -178,12 +178,10 @@ static Scheme::ValueT scmllama_stub_llm_sampler_sample(Scheme::VM* vm,
 
   LlmHandle* smpl_handle =
       Util::handletable(vm)->get(vm, value, kLlmSampler, kWho);
-  LlmHandle* ctx_handle =
-      Util::handletable(vm)->get(vm, ctx_value, kLlmContext, kWho);
+  llama_context* ctx = Util::context_ptr(vm, ctx_value, kWho);
 
   llama_token token = llama_sampler_sample(
-      static_cast<llama_sampler*>(smpl_handle->ptr),
-      static_cast<llama_context*>(ctx_handle->ptr), -1);
+      static_cast<llama_sampler*>(smpl_handle->ptr), ctx, -1);
   if (token < 0)
     Util::error_raise(vm, "%s: sampling failed", kWho);
 

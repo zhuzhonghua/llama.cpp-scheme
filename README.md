@@ -137,6 +137,32 @@ Constrain generation with a [GBNF grammar](https://github.com/ggml-org/llama.cpp
 ;; assistant turn.
 ```
 
+### Embeddings
+
+| Function | Description |
+| --- | --- |
+| `(llm-embed ctx text [options...])` | Embed `text` and return a vector of floats |
+
+The context must be created with `(embeddings . #t)`:
+
+```scheme
+(define ctx (llm-context-new m '((n-ctx . 512)
+                                 (embeddings . #t)
+                                 (pooling-type . mean))))
+
+(llm-embed ctx "Once upon a time")
+;; => #(0.0123 -0.0456 ...)
+```
+
+Options:
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `add-special` | `#t` | Prepend BOS when tokenizing |
+| `parse-special` | `#f` | Treat special token markers as tokens |
+
+`pooling-type` (on `llm-context-new`) accepts `none`, `mean`, `cls`, `last`, or `rank` (symbol or string). With `none` the result is the last token's embedding; with a pooled type it is one vector per sequence; `rank` uses the classifier dimension. The KV cache is cleared before every call, so use a dedicated context for embeddings.
+
 ## License
 
 See [LICENSE](LICENSE).

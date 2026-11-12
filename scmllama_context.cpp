@@ -7,6 +7,38 @@
 
 namespace scmllama {
 
+// Parses a pooling-type option value: symbol or string, e.g. 'mean or "cls".
+static enum llama_pooling_type scmllama_pooling_type(Scheme::VM* vm,
+                                                    Scheme::ValueT* slot,
+                                                    const char* who)
+{
+  const char* chars = NULL;
+  int len = 0;
+
+  if (Scheme::scm_is_symbol(vm, slot))
+    chars = Scheme::scm_tostring(vm, slot, &len);
+  else if (Scheme::scm_is_string(vm, slot))
+    chars = Scheme::scm_get_string(vm, slot, &len);
+  else
+    Util::error_raise(vm,
+                      "%s: option 'pooling-type' expects a symbol or string, "
+                      "got %s",
+                      who, Scheme::scm_typename(vm, slot));
+
+  const std::string value(chars ? chars : "", chars ? len : 0);
+
+  if (value == "none") return LLAMA_POOLING_TYPE_NONE;
+  if (value == "mean") return LLAMA_POOLING_TYPE_MEAN;
+  if (value == "cls")  return LLAMA_POOLING_TYPE_CLS;
+  if (value == "last") return LLAMA_POOLING_TYPE_LAST;
+  if (value == "rank") return LLAMA_POOLING_TYPE_RANK;
+
+  Util::error_raise(vm,
+                    "%s: unknown pooling-type '%s' "
+                    "(expected none/mean/cls/last/rank)",
+                    who, value.c_str());
+}
+
 static void scmllama_context_destroy(void* ptr)
 {
   if (ptr)
@@ -21,7 +53,7 @@ static Scheme::ValueT scmllama_stub_llm_context_new(Scheme::VM* vm,
   static const char* const kKeys[] = {
     "n-ctx", "n-batch", "n-ubatch", "n-seq-max",
     "n-threads", "n-threads-batch",
-    "embeddings", "offload-kqv", "no-perf", "op-offload",
+    "embeddings", "pooling-type", "offload-kqv", "no-perf", "op-offload",
     "swa-full", "kv-unified",
     "rope-freq-base", "rope-freq-scale",
     "yarn-ext-factor", "yarn-attn-factor",
@@ -52,6 +84,12 @@ static Scheme::ValueT scmllama_stub_llm_context_new(Scheme::VM* vm,
 
   params.embeddings =
       Util::option_get_bool(vm, opts, "embeddings", params.embeddings, kWho);
+
+  Scheme::ValueT* pooling_slot =
+      Util::option_find(vm, opts, "pooling-type", kWho);
+  if (pooling_slot)
+    params.pooling_type = scmllama_pooling_type(vm, pooling_slot, kWho);
+
   params.offload_kqv =
       Util::option_get_bool(vm, opts, "offload-kqv", params.offload_kqv, kWho);
   params.no_perf =
@@ -109,9 +147,7 @@ static Scheme::ValueT scmllama_stub_llm_context_info(Scheme::VM* vm,
                                                      Scheme::ValueT* value)
 {
   static const char* const kWho = "llm-context-info";
-  LlmHandle* handle =
-      Util::handletable(vm)->get(vm, value, kLlmContext, kWho);
-  llama_context* ctx = static_cast<llama_context*>(handle->ptr);
+  llama_context* ctx = Util::context_ptr(vm, value, kWho);
 
   Sgcvar1(vm, table);
   *table = Scheme::scm_make_table(vm);
@@ -146,9 +182,8 @@ static Scheme::ValueT scmllama_stub_llm_reset(Scheme::VM* vm,
                                               Scheme::ValueT* value)
 {
   static const char* const kWho = "llm-reset";
-  LlmHandle* handle = Util::handletable(vm)->get(vm, value, kLlmContext, kWho);
-  llama_memory_clear(llama_get_memory(static_cast<llama_context*>(handle->ptr)),
-                     true);
+  llama_context* ctx = Util::context_ptr(vm, value, kWho);
+  llama_memory_clear(llama_get_memory(ctx), true);
   return Scheme::scm_make_bool(vm, true);
 }
 
@@ -159,8 +194,7 @@ static Scheme::ValueT scmllama_stub_llm_kv_pos(Scheme::VM* vm,
                                                 Scheme::ValueT* value)
 {
   static const char* const kWho = "llm-kv-pos";
-  LlmHandle* handle = Util::handletable(vm)->get(vm, value, kLlmContext, kWho);
-  llama_context* ctx = static_cast<llama_context*>(handle->ptr);
+  llama_context* ctx = Util::context_ptr(vm, value, kWho);
   return Scheme::scm_make_int(vm, Util::kv_seq_used(ctx, 0));
 }
 
@@ -176,8 +210,7 @@ static Scheme::ValueT scmllama_stub_llm_kv_remove(Scheme::VM* vm,
                                                   Scheme::ValueT* p1_value)
 {
   static const char* const kWho = "llm-kv-remove";
-  LlmHandle* handle = Util::handletable(vm)->get(vm, ctx_value, kLlmContext, kWho);
-  llama_context* ctx = static_cast<llama_context*>(handle->ptr);
+  llama_context* ctx = Util::context_ptr(vm, ctx_value, kWho);
 
   const llama_pos p0 =
       static_cast<llama_pos>(Scheme::scm_get_int(vm, p0_value));
@@ -201,8 +234,7 @@ static Scheme::ValueT scmllama_stub_llm_kv_shift(Scheme::VM* vm,
                                                  Scheme::ValueT* delta_value)
 {
   static const char* const kWho = "llm-kv-shift";
-  LlmHandle* handle = Util::handletable(vm)->get(vm, ctx_value, kLlmContext, kWho);
-  llama_context* ctx = static_cast<llama_context*>(handle->ptr);
+  llama_context* ctx = Util::context_ptr(vm, ctx_value, kWho);
 
   const llama_pos p0 =
       static_cast<llama_pos>(Scheme::scm_get_int(vm, p0_value));
@@ -240,8 +272,7 @@ static Scheme::ValueT scmllama_stub_llm_perf(Scheme::VM* vm,
                                               Scheme::ValueT* value)
 {
   static const char* const kWho = "llm-perf";
-  LlmHandle* handle = Util::handletable(vm)->get(vm, value, kLlmContext, kWho);
-  llama_context* ctx = static_cast<llama_context*>(handle->ptr);
+  llama_context* ctx = Util::context_ptr(vm, value, kWho);
 
   const llama_perf_context_data perf = llama_perf_context(ctx);
 
@@ -271,8 +302,7 @@ static Scheme::ValueT scmllama_stub_llm_perf_reset(Scheme::VM* vm,
                                                     Scheme::ValueT* value)
 {
   static const char* const kWho = "llm-perf-reset";
-  LlmHandle* handle = Util::handletable(vm)->get(vm, value, kLlmContext, kWho);
-  llama_perf_context_reset(static_cast<llama_context*>(handle->ptr));
+  llama_perf_context_reset(Util::context_ptr(vm, value, kWho));
   return Scheme::scm_make_bool(vm, true);
 }
 
@@ -283,8 +313,7 @@ static Scheme::ValueT scmllama_stub_llm_state_save(Scheme::VM* vm,
                                                     Scheme::ValueT* path_value)
 {
   static const char* const kWho = "llm-state-save";
-  LlmHandle* handle = Util::handletable(vm)->get(vm, ctx_value, kLlmContext, kWho);
-  llama_context* ctx = static_cast<llama_context*>(handle->ptr);
+  llama_context* ctx = Util::context_ptr(vm, ctx_value, kWho);
 
   int path_len = 0;
   const char* path_chars = Scheme::scm_get_string(vm, path_value, &path_len);
@@ -302,8 +331,7 @@ static Scheme::ValueT scmllama_stub_llm_state_load(Scheme::VM* vm,
                                                     Scheme::ValueT* path_value)
 {
   static const char* const kWho = "llm-state-load";
-  LlmHandle* handle = Util::handletable(vm)->get(vm, ctx_value, kLlmContext, kWho);
-  llama_context* ctx = static_cast<llama_context*>(handle->ptr);
+  llama_context* ctx = Util::context_ptr(vm, ctx_value, kWho);
 
   int path_len = 0;
   const char* path_chars = Scheme::scm_get_string(vm, path_value, &path_len);

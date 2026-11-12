@@ -45,6 +45,12 @@ LlmHandle* Util::model_handle(Scheme::VM* vm, Scheme::ValueT* value,
   return handletable(vm)->get(vm, value, kLlmModel, who);
 }
 
+LlmHandle* Util::context_handle(Scheme::VM* vm, Scheme::ValueT* value,
+                                const char* who)
+{
+  return handletable(vm)->get(vm, value, kLlmContext, who);
+}
+
 // ---- Util: model accessors ----
 
 const llama_model* Util::model_ptr(Scheme::VM* vm, Scheme::ValueT* value,
@@ -67,6 +73,19 @@ const llama_model* Util::model_ptr(LlmHandle* handle)
 const llama_vocab* Util::model_vocab(LlmHandle* handle)
 {
   return llama_model_get_vocab(model_ptr(handle));
+}
+
+// ---- Util: context accessors ----
+
+llama_context* Util::context_ptr(Scheme::VM* vm, Scheme::ValueT* value,
+                                 const char* who)
+{
+  return context_ptr(context_handle(vm, value, who));
+}
+
+llama_context* Util::context_ptr(LlmHandle* handle)
+{
+  return static_cast<llama_context*>(handle->ptr);
 }
 
 // ---- Util: KV cache ----

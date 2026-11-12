@@ -17,6 +17,19 @@ struct LlmHandle;    // defined in scmllama_handle.h
 class HandleTable;   // defined in scmllama_handle.h
 class Runtime;       // defined in scmllama.h
 
+// Frees a llama_batch on scope exit, including when a Scheme error unwinds.
+class BatchGuard {
+public:
+  explicit BatchGuard(llama_batch& batch) : batch_(batch) {}
+  ~BatchGuard() { llama_batch_free(batch_); }
+
+  BatchGuard(const BatchGuard&) = delete;
+  BatchGuard& operator=(const BatchGuard&) = delete;
+
+private:
+  llama_batch& batch_;
+};
+
 // Stateless helpers.  Methods are grouped by prefix:
 //   error_*   error reporting
 //   option_*  alist option access
@@ -40,6 +53,8 @@ public:
 
   static LlmHandle* model_handle(Scheme::VM* vm, Scheme::ValueT* value,
                                  const char* who);
+  static LlmHandle* context_handle(Scheme::VM* vm, Scheme::ValueT* value,
+                                   const char* who);
 
   // --- model accessors ---
 
@@ -52,6 +67,15 @@ public:
   // Accessors for callers that already hold a checked handle.
   static const llama_model* model_ptr(LlmHandle* handle);
   static const llama_vocab* model_vocab(LlmHandle* handle);
+
+  // --- context accessors ---
+
+  // One-call context accessor: handle lookup + kind check + dereference.
+  static llama_context* context_ptr(Scheme::VM* vm, Scheme::ValueT* value,
+                                    const char* who);
+
+  // Accessor for callers that already hold a checked handle.
+  static llama_context* context_ptr(LlmHandle* handle);
 
   // --- KV cache introspection ---
 

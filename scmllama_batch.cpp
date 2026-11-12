@@ -117,9 +117,7 @@ static Scheme::ValueT scmllama_stub_llm_decode(Scheme::VM* vm,
 {
   static const char* const kWho = "llm-decode";
 
-  LlmHandle* ctx_handle =
-      Util::handletable(vm)->get(vm, ctx_value, kLlmContext, kWho);
-  llama_context* ctx = static_cast<llama_context*>(ctx_handle->ptr);
+  llama_context* ctx = Util::context_ptr(vm, ctx_value, kWho);
 
   LlmHandle* batch_handle =
       Util::handletable(vm)->get(vm, batch_value, kLlmBatch, kWho);
