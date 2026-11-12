@@ -69,8 +69,7 @@ static Scheme::ValueT scmllama_stub_llm_batch_set_logits(Scheme::VM* vm,
 {
   static const char* const kWho = "llm-batch-set-logits";
 
-  LlmHandle* handle = Util::handletable(vm)->get(vm, value, kLlmBatch, kWho);
-  llama_batch* batch = static_cast<llama_batch*>(handle->ptr);
+  llama_batch* batch = Util::batch_ptr(vm, value, kWho);
 
   int64_t idx = Scheme::scm_get_int(vm, index);
   if (idx < 0 || idx >= batch->n_tokens)
@@ -85,8 +84,7 @@ static Scheme::ValueT scmllama_stub_llm_batch_n_tokens(Scheme::VM* vm,
                                                        Scheme::ValueT* value)
 {
   static const char* const kWho = "llm-batch-n-tokens";
-  LlmHandle* handle = Util::handletable(vm)->get(vm, value, kLlmBatch, kWho);
-  llama_batch* batch = static_cast<llama_batch*>(handle->ptr);
+  llama_batch* batch = Util::batch_ptr(vm, value, kWho);
   return Scheme::scm_make_int(vm, batch->n_tokens);
 }
 
@@ -119,9 +117,7 @@ static Scheme::ValueT scmllama_stub_llm_decode(Scheme::VM* vm,
 
   llama_context* ctx = Util::context_ptr(vm, ctx_value, kWho);
 
-  LlmHandle* batch_handle =
-      Util::handletable(vm)->get(vm, batch_value, kLlmBatch, kWho);
-  llama_batch* batch = static_cast<llama_batch*>(batch_handle->ptr);
+  llama_batch* batch = Util::batch_ptr(vm, batch_value, kWho);
 
   int32_t rc = llama_decode(ctx, *batch);
   if (rc != 0)

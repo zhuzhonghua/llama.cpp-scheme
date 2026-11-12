@@ -51,6 +51,18 @@ LlmHandle* Util::context_handle(Scheme::VM* vm, Scheme::ValueT* value,
   return handletable(vm)->get(vm, value, kLlmContext, who);
 }
 
+LlmHandle* Util::sampler_handle(Scheme::VM* vm, Scheme::ValueT* value,
+                                const char* who)
+{
+  return handletable(vm)->get(vm, value, kLlmSampler, who);
+}
+
+LlmHandle* Util::batch_handle(Scheme::VM* vm, Scheme::ValueT* value,
+                              const char* who)
+{
+  return handletable(vm)->get(vm, value, kLlmBatch, who);
+}
+
 // ---- Util: model accessors ----
 
 const llama_model* Util::model_ptr(Scheme::VM* vm, Scheme::ValueT* value,
@@ -86,6 +98,32 @@ llama_context* Util::context_ptr(Scheme::VM* vm, Scheme::ValueT* value,
 llama_context* Util::context_ptr(LlmHandle* handle)
 {
   return static_cast<llama_context*>(handle->ptr);
+}
+
+// ---- Util: sampler accessors ----
+
+llama_sampler* Util::sampler_ptr(Scheme::VM* vm, Scheme::ValueT* value,
+                                 const char* who)
+{
+  return sampler_ptr(sampler_handle(vm, value, who));
+}
+
+llama_sampler* Util::sampler_ptr(LlmHandle* handle)
+{
+  return static_cast<llama_sampler*>(handle->ptr);
+}
+
+// ---- Util: batch accessors ----
+
+llama_batch* Util::batch_ptr(Scheme::VM* vm, Scheme::ValueT* value,
+                             const char* who)
+{
+  return batch_ptr(batch_handle(vm, value, who));
+}
+
+llama_batch* Util::batch_ptr(LlmHandle* handle)
+{
+  return static_cast<llama_batch*>(handle->ptr);
 }
 
 // ---- Util: KV cache ----
@@ -175,6 +213,124 @@ std::vector<llama_token> Util::tokenize_text(Scheme::VM* vm,
   }
   tokens.resize(static_cast<size_t>(count));
   return tokens;
+}
+
+// ---- Util: chat ----
+
+// Renders a message list into a prompt string.  The caller validates the
+// option keys; this helper only reads `template` and `add-assistant`.
+std::string Util::chat_render(Scheme::VM* vm, const llama_model* model,
+                              Scheme::ValueT* messages_value,
+                              Scheme::ValueT* opts, const char* who)
+{
+  const bool add_assistant =
+      Util::option_get_bool(vm, opts, "add-assistant", true, who);
+
+  std::string template_storage;
+  const char* chat_template = NULL;
+
+  Scheme::ValueT* template_slot = Util::option_find(vm, opts, "template", who);
+  if (template_slot)
+  {
+    if (!Scheme::scm_is_string(vm, template_slot))
+      Util::error_raise(vm, "%s: option 'template' expects a string, got %s",
+                        who, Scheme::scm_typename(vm, template_slot));
+    int len = 0;
+    const char* chars = Scheme::scm_get_string(vm, template_slot, &len);
+    template_storage.assign(chars ? chars : "", chars ? len : 0);
+    chat_template = template_storage.c_str();
+  }
+  else
+  {
+    chat_template = llama_model_chat_template(model, NULL);
+    if (!chat_template)
+      Util::error_raise(vm,
+                        "%s: model has no built-in chat template; pass one "
+                        "with (template . \"chatml\")",
+                        who);
+  }
+
+  // Walk the message list once.  Pointers returned by scm_car/scm_cdr stay
+  // valid because messages_value is a rooted argument for the whole call.
+  std::vector<std::string> roles;
+  std::vector<std::string> contents;
+  size_t total_chars = 0;
+
+  int index = 0;
+  Scheme::ValueT* cur = messages_value;
+  while (Scheme::scm_is_pair(vm, cur))
+  {
+    Scheme::ValueT* message = Scheme::scm_car(vm, cur);
+    if (!Scheme::scm_is_pair(vm, message))
+      Util::error_raise(vm,
+                        "%s: message %d must be a (role . content) pair, got %s",
+                        who, index, Scheme::scm_typename(vm, message));
+
+    Scheme::ValueT* role = Scheme::scm_car(vm, message);
+    Scheme::ValueT* content = Scheme::scm_cdr(vm, message);
+
+    if (!Scheme::scm_is_string(vm, role))
+      Util::error_raise(vm, "%s: message %d role must be a string, got %s",
+                        who, index, Scheme::scm_typename(vm, role));
+    if (!Scheme::scm_is_string(vm, content))
+      Util::error_raise(vm,
+                        "%s: message %d must be a (role . content) pair "
+                        "(content is not a string: %s)",
+                        who, index, Scheme::scm_typename(vm, content));
+
+    int role_len = 0;
+    const char* role_chars = Scheme::scm_get_string(vm, role, &role_len);
+    roles.push_back(std::string(role_chars ? role_chars : "",
+                                role_chars ? role_len : 0));
+
+    int content_len = 0;
+    const char* content_chars = Scheme::scm_get_string(vm, content, &content_len);
+    contents.push_back(std::string(content_chars ? content_chars : "",
+                                   content_chars ? content_len : 0));
+
+    total_chars += roles.back().size() + contents.back().size();
+
+    cur = Scheme::scm_cdr(vm, cur);
+    ++index;
+  }
+  if (!Scheme::scm_is_null(vm, cur))
+    Util::error_raise(vm, "%s: messages must be a proper list", who);
+
+  const size_t n_msg = roles.size();
+  std::vector<llama_chat_message> chat(n_msg);
+  for (size_t i = 0; i < n_msg; ++i)
+  {
+    chat[i].role = roles[i].c_str();
+    chat[i].content = contents[i].c_str();
+  }
+
+  // One render pass.  llama_chat_apply_template() always formats the whole
+  // string internally, so measuring first (buf = NULL) would do the work
+  // twice.  Size the buffer from the message text, as the API recommends,
+  // and retry only if the estimate turns out to be too small.
+  std::vector<char> buf(2 * total_chars + 256, '\0');
+
+  int32_t written = llama_chat_apply_template(
+      chat_template, chat.data(), chat.size(), add_assistant, buf.data(),
+      static_cast<int32_t>(buf.size()));
+
+  if (written < 0)
+    Util::error_raise(vm,
+                      "%s: template is not supported by llama.cpp "
+                      "(see llm-chat-templates)",
+                      who);
+
+  if (written >= static_cast<int32_t>(buf.size()))
+  {
+    buf.resize(static_cast<size_t>(written) + 1);
+    written = llama_chat_apply_template(
+        chat_template, chat.data(), chat.size(), add_assistant, buf.data(),
+        static_cast<int32_t>(buf.size()));
+    if (written < 0 || written >= static_cast<int32_t>(buf.size()))
+      Util::error_raise(vm, "%s: failed to render the chat template", who);
+  }
+
+  return std::string(buf.data(), static_cast<size_t>(written));
 }
 
 // ---- Util: option ----

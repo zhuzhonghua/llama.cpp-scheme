@@ -118,6 +118,7 @@ Constrain generation with a [GBNF grammar](https://github.com/ggml-org/llama.cpp
 | Function | Description |
 | --- | --- |
 | `(llm-generate ctx sampler prompt callback [options...])` | Synchronous generation loop; returns generated text, calls `callback` per token piece, stops on EOG or `max-tokens` |
+| `(llm-chat-generate ctx sampler messages callback [options...])` | Render `((role . content) ...)` with the model's chat template, then generate in one call |
 
 ### Chat templates
 
@@ -136,6 +137,33 @@ Constrain generation with a [GBNF grammar](https://github.com/ggml-org/llama.cpp
 ;; (add-assistant . #f) stops after the last message instead of opening an
 ;; assistant turn.
 ```
+
+### Chat generation
+
+`llm-chat-generate` renders the messages and runs the generation loop in one
+call:
+
+```scheme
+(llm-chat-generate ctx smpl
+  '(("system" . "You are a helpful assistant.")
+    ("user" . "Hello!"))
+  (lambda (piece) (display piece)))
+```
+
+Options:
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `template` | model's built-in | Template name or source (required when the model has none) |
+| `add-assistant` | `#t` | Append the assistant turn header |
+| `max-tokens` | `256` | Stop after this many tokens |
+| `add-special` | `#f` | Prepend BOS; rendered templates already contain their markers |
+| `parse-special` | `#t` | Parse `<|im_start|>`-style markers as special tokens |
+
+The KV cache is cleared before each call, so one context can be reused across
+conversations. `keep-kv` is rejected because the full conversation is
+re-rendered every time; for incremental turns, use
+`llm-chat-template-apply` + `llm-generate` with `(keep-kv . #t)`.
 
 ### Embeddings
 

@@ -9,6 +9,7 @@
 #include "llama.h"
 
 #include <cstdint>
+#include <string>
 #include <vector>
 
 namespace scmllama {
@@ -38,6 +39,7 @@ private:
 //   model_*   handle -> llama object accessors
 //   kv_*      KV cache introspection
 //   token_*   token id parsing
+//   chat_*    chat template rendering
 class Util {
 public:
   // Raises a Scheme error with a formatted message.
@@ -55,6 +57,10 @@ public:
                                  const char* who);
   static LlmHandle* context_handle(Scheme::VM* vm, Scheme::ValueT* value,
                                    const char* who);
+  static LlmHandle* sampler_handle(Scheme::VM* vm, Scheme::ValueT* value,
+                                   const char* who);
+  static LlmHandle* batch_handle(Scheme::VM* vm, Scheme::ValueT* value,
+                                 const char* who);
 
   // --- model accessors ---
 
@@ -76,6 +82,24 @@ public:
 
   // Accessor for callers that already hold a checked handle.
   static llama_context* context_ptr(LlmHandle* handle);
+
+  // --- sampler accessors ---
+
+  // One-call sampler accessor: handle lookup + kind check + dereference.
+  static llama_sampler* sampler_ptr(Scheme::VM* vm, Scheme::ValueT* value,
+                                    const char* who);
+
+  // Accessor for callers that already hold a checked handle.
+  static llama_sampler* sampler_ptr(LlmHandle* handle);
+
+  // --- batch accessors ---
+
+  // One-call batch accessor: handle lookup + kind check + dereference.
+  static llama_batch* batch_ptr(Scheme::VM* vm, Scheme::ValueT* value,
+                                const char* who);
+
+  // Accessor for callers that already hold a checked handle.
+  static llama_batch* batch_ptr(LlmHandle* handle);
 
   // --- KV cache introspection ---
 
@@ -101,6 +125,15 @@ public:
                                                 bool add_special,
                                                 bool parse_special,
                                                 const char* who);
+
+  // --- chat ---
+
+  // Renders a proper list of (role . content) pairs into a prompt string.
+  // `opts` may be NULL; the caller validates the option keys.  Reads only
+  // `template` and `add-assistant`.
+  static std::string chat_render(Scheme::VM* vm, const llama_model* model,
+                                 Scheme::ValueT* messages, Scheme::ValueT* opts,
+                                 const char* who);
 
   // --- option parsing ---
 
