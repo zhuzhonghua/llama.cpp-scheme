@@ -50,6 +50,7 @@ add_executable(scmllama
     scmllama_generate.cpp
     scmllama_chat.cpp
     scmllama_embed.cpp
+    scmllama_lora.cpp
     ${DUMMYSCHEME_SOURCES})
 
 target_include_directories(scmllama PRIVATE

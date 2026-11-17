@@ -1,7 +1,7 @@
 #pragma once
 
 // HandleTable keeps a registry of every Scheme-visible resource (model,
-// context, sampler, batch).  Each handle is a lightuserdata wrapping an
+// context, sampler, batch, lora).  Each handle is a lightuserdata wrapping an
 // LlmHandle record; records are never freed before shutdown so stale Scheme
 // values are detected instead of dereferencing freed memory.
 //
@@ -12,12 +12,13 @@
 namespace scmllama {
 
 // Kind tag stored in every handle.  It keeps a model from being used where a
-// context/sampler/batch is expected.
+// context/sampler/batch/lora is expected.
 enum LlmKind {
   kLlmModel = 1,
   kLlmContext,
   kLlmSampler,
-  kLlmBatch
+  kLlmBatch,
+  kLlmLora
 };
 
 // Scheme sees a lightuserdata pointing at an LlmHandle.
@@ -26,6 +27,9 @@ struct LlmHandle {
   void* ptr;
   bool alive;
   void (*destroy)(void*);
+  // Optional owning model (loras): released together with the model, because
+  // llama_model_free deletes its adapters.
+  void* owner;
 };
 
 class HandleTable {
@@ -34,9 +38,10 @@ public:
   HandleTable(const HandleTable&) = delete;
   HandleTable& operator=(const HandleTable&) = delete;
 
-  // Registers a new live handle and returns its lightuserdata value.
+  // Registers a new live handle and returns its lightuserdata value.  `owner`
+  // is an opaque resource pointer (used by loras to name their model).
   Scheme::ValueT make(Scheme::VM* vm, LlmKind kind, void* ptr,
-                      void (*destroy)(void*));
+                      void (*destroy)(void*), void* owner = NULL);
 
   // Like get(), but a dead handle is returned as-is (for idempotent free).
   LlmHandle* peek(Scheme::VM* vm, Scheme::ValueT* value, LlmKind kind,

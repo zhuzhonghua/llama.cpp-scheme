@@ -61,6 +61,8 @@ public:
                                    const char* who);
   static LlmHandle* batch_handle(Scheme::VM* vm, Scheme::ValueT* value,
                                  const char* who);
+  static LlmHandle* lora_handle(Scheme::VM* vm, Scheme::ValueT* value,
+                                const char* who);
 
   // --- model accessors ---
 
@@ -100,6 +102,12 @@ public:
 
   // Accessor for callers that already hold a checked handle.
   static llama_batch* batch_ptr(LlmHandle* handle);
+
+  // --- lora accessors ---
+
+  // One-call lora accessor: handle lookup + kind check + dereference.
+  static llama_adapter_lora* lora_ptr(Scheme::VM* vm, Scheme::ValueT* value,
+                                      const char* who);
 
   // --- KV cache introspection ---
 

@@ -22,18 +22,20 @@ const char* HandleTable::kind_name(LlmKind kind)
     case kLlmContext: return "context";
     case kLlmSampler: return "sampler";
     case kLlmBatch:   return "batch";
+    case kLlmLora:    return "lora";
   }
   return "handle";
 }
 
 Scheme::ValueT HandleTable::make(Scheme::VM* vm, LlmKind kind, void* ptr,
-                                 void (*destroy)(void*))
+                                 void (*destroy)(void*), void* owner)
 {
   LlmHandle* handle = new LlmHandle;
   handle->kind = kind;
   handle->ptr = ptr;
   handle->alive = true;
   handle->destroy = destroy;
+  handle->owner = owner;
   handles_.push_back(handle);
   return Scheme::scm_make_lightuserdata(vm, handle);
 }
@@ -90,10 +92,21 @@ void HandleTable::release(LlmHandle* handle)
 {
   if (!handle || !handle->alive)
     return;
+  // loras are owned by their model: free them first, llama_model_free would
+  // otherwise delete them and leave the handle dangling
+  if (handle->kind == kLlmModel)
+  {
+    for (size_t i = 0; i < handles_.size(); ++i)
+    {
+      if (handles_[i]->alive && handles_[i]->owner == handle->ptr)
+        release(handles_[i]);
+    }
+  }
   if (handle->destroy)
     handle->destroy(handle->ptr);
   handle->ptr = NULL;
   handle->alive = false;
+  handle->owner = NULL;
 }
 
 void HandleTable::shutdown()

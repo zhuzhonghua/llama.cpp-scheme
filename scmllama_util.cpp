@@ -63,6 +63,12 @@ LlmHandle* Util::batch_handle(Scheme::VM* vm, Scheme::ValueT* value,
   return handletable(vm)->get(vm, value, kLlmBatch, who);
 }
 
+LlmHandle* Util::lora_handle(Scheme::VM* vm, Scheme::ValueT* value,
+                             const char* who)
+{
+  return handletable(vm)->get(vm, value, kLlmLora, who);
+}
+
 // ---- Util: model accessors ----
 
 const llama_model* Util::model_ptr(Scheme::VM* vm, Scheme::ValueT* value,
@@ -124,6 +130,14 @@ llama_batch* Util::batch_ptr(Scheme::VM* vm, Scheme::ValueT* value,
 llama_batch* Util::batch_ptr(LlmHandle* handle)
 {
   return static_cast<llama_batch*>(handle->ptr);
+}
+
+// ---- Util: lora accessors ----
+
+llama_adapter_lora* Util::lora_ptr(Scheme::VM* vm, Scheme::ValueT* value,
+                                   const char* who)
+{
+  return static_cast<llama_adapter_lora*>(lora_handle(vm, value, who)->ptr);
 }
 
 // ---- Util: KV cache ----

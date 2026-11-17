@@ -191,6 +191,27 @@ Options:
 
 `pooling-type` (on `llm-context-new`) accepts `none`, `mean`, `cls`, `last`, or `rank` (symbol or string). With `none` the result is the last token's embedding; with a pooled type it is one vector per sequence; `rank` uses the classifier dimension. The KV cache is cleared before every call, so use a dedicated context for embeddings.
 
+### LoRA
+
+| Function | Description |
+| --- | --- |
+| `(llm-lora-load model path)` | Load a GGUF LoRA adapter for `model` |
+| `(llm-set-loras ctx loras)` | Set the adapters on a context, with optional per-adapter scales |
+| `(llm-lora-free lora)` | Release an adapter early (also released with its model) |
+| `(llm-lora? obj)` | Type predicate |
+
+```scheme
+(define style (llm-lora-load m "models/style.gguf"))
+(llm-set-loras ctx (list (cons style 0.8)))   ; or (list style) for scale 1.0
+;; ... generate ...
+(llm-set-loras ctx '())                       ; remove all adapters
+```
+
+An adapter belongs to the model it was loaded for. `llm-model-free` releases
+the model's adapters automatically; free adapters first if you want the memory
+back earlier. LoRA files must match the base model architecture and tensors.
+
+
 ## License
 
 See [LICENSE](LICENSE).
