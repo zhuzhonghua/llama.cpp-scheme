@@ -3,8 +3,14 @@
 // Scheme side:
 //   (llm-sampler-new model [opts])   -> sampler
 //   (llm-sampler-sample smpl ctx)    -> token id
+//   (llm-sampler-reset smpl)         -> #t
 //   (llm-sampler-free smpl)          -> #t
 //   (llm-sampler? smpl)              -> boolean
+//
+// A sampler keeps state across tokens: grammar parser position, penalty
+// history, and the RNG stream.  Reset it before reusing the same sampler for a
+// new, unrelated prompt; otherwise grammar and penalties still see the old
+// generation.
 //
 // Options for llm-sampler-new:
 //   greedy          boolean  #f      greedy instead of dist
@@ -186,6 +192,16 @@ static Scheme::ValueT scmllama_stub_llm_sampler_sample(Scheme::VM* vm,
   return Scheme::scm_make_int(vm, token);
 }
 
+// Clears sampler state (grammar parser, penalty history, RNG stream) so the
+// same sampler can be reused for a new prompt.
+static Scheme::ValueT scmllama_stub_llm_sampler_reset(Scheme::VM* vm,
+                                                      Scheme::ValueT* value)
+{
+  llama_sampler* smpl = Util::sampler_ptr(vm, value, "llm-sampler-reset");
+  llama_sampler_reset(smpl);
+  return Scheme::scm_make_bool(vm, true);
+}
+
 static Scheme::ValueT scmllama_stub_llm_sampler_free(Scheme::VM* vm,
                                                      Scheme::ValueT* value)
 {
@@ -207,6 +223,7 @@ void scmllama_register_sampler_lib(Scheme::VM* vm)
   static const Scheme::RegCProc kLib[] = {
     Scheme::RegCProc("llm-sampler-new",    scmllama_stub_llm_sampler_new, true),
     Scheme::RegCProc("llm-sampler-sample", scmllama_stub_llm_sampler_sample),
+    Scheme::RegCProc("llm-sampler-reset",  scmllama_stub_llm_sampler_reset),
     Scheme::RegCProc("llm-sampler-free",   scmllama_stub_llm_sampler_free),
     Scheme::RegCProc("llm-sampler?",       scmllama_stub_llm_sampler_p),
     Scheme::RegCProc(NULL, -1)

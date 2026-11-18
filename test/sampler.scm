@@ -46,6 +46,15 @@
 (check-true "sampler? accepts penalties" (llm-sampler? sp))
 (check-true "penalty sampler samples" (>= (llm-sampler-sample sp ctx) 0))
 
+;; ---- reset ---------------------------------------------------------------
+
+;; Reset rewinds the dist RNG to the initial seed, so the first draw repeats.
+(define first-draw (llm-sampler-sample s1 ctx))
+(check "sampler reset returns #t" (llm-sampler-reset s1) #t)
+(check "reset restarts the RNG stream"
+       (llm-sampler-sample s1 ctx)
+       first-draw)
+
 ;; ---- error paths ---------------------------------------------------------
 
 (define bad-key
@@ -72,6 +81,10 @@
 (define uaf
   (xpcall (lambda () (llm-sampler-sample greedy ctx)) (lambda (e) e)))
 (check-true "use-after-free raises error" (string? uaf))
+
+(define reset-uaf
+  (xpcall (lambda () (llm-sampler-reset greedy)) (lambda (e) e)))
+(check-true "reset on a freed sampler raises error" (string? reset-uaf))
 
 (define wrong-kind
   (xpcall (lambda () (llm-sampler-sample m ctx)) (lambda (e) e)))

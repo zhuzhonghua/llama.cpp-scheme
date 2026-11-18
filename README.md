@@ -96,6 +96,7 @@ All functions are registered as native Scheme procedures (prefix `llm-`). Option
 | --- | --- |
 | `(llm-sampler-new model [options...])` | Create a sampler chain (grammar → penalties → top-k → top-p → min-p → temp → greedy/dist) |
 | `(llm-sampler-sample sampler ctx)` | Sample the next token from logits |
+| `(llm-sampler-reset sampler)` | Clear sampler state (grammar progress, penalty history, RNG stream) |
 | `(llm-sampler-free sampler)` | Release a sampler |
 | `(llm-sampler? obj)` | Type predicate |
 
@@ -112,6 +113,19 @@ Constrain generation with a [GBNF grammar](https://github.com/ggml-org/llama.cpp
 ```
 
 `grammar-root` (default `"root"`) selects the start symbol. A grammar sampler keeps a pointer to the model vocabulary, so keep the model alive while the sampler is in use.
+
+A sampler carries state across tokens, not just across calls. Reusing one for a
+new prompt without `llm-sampler-reset` means the grammar parser is already in
+its final state (generation stops immediately) and penalties still see the old
+tokens. Reset also restarts the RNG stream, so a seeded sampler repeats its
+sequence after a reset:
+
+```scheme
+(llm-generate ctx smpl prompt (lambda (p) #t))
+(llm-reset ctx)
+(llm-sampler-reset smpl)          ; required before the next prompt
+(llm-generate ctx smpl prompt2 (lambda (p) #t))
+```
 
 ### Generation
 

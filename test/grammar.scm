@@ -25,6 +25,24 @@
 (check-true "grammar constrains output to yes/no"
             (member answer '("yes" "no")))
 
+;; ---- reuse after reset ---------------------------------------------------
+;;
+;; The grammar parser has consumed "yes"/"no" and is in its final state.
+;; Without a reset the next generation can only emit EOG and returns "".
+;; llm-sampler-reset rewinds the parser so the sampler can serve a new prompt.
+
+(check "sampler reset returns #t" (llm-sampler-reset yes-no) #t)
+(llm-reset ctx)
+
+(define answer2
+  (llm-generate ctx yes-no "Answer with yes or no: is grass green?"
+                (lambda (piece) #t)
+                '((max-tokens . 8))))
+
+(display "answer 2   : ") (write answer2) (newline)
+(check-true "reset grammar sampler is reusable"
+            (member answer2 '("yes" "no")))
+
 ;; ---- custom start symbol ------------------------------------------------
 
 (llm-reset ctx)
