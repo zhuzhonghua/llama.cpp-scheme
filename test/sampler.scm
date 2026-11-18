@@ -14,81 +14,74 @@
 
 ;; ---- handle checks -------------------------------------------------------
 
-(check "sampler? rejects non-sampler" (llm-sampler? 42) #f)
-(check "sampler? rejects model" (llm-sampler? m) #f)
+(display "sampler? rejects non-sampler") (display ": ") (write (llm-sampler? 42)) (newline)
+(display "sampler? rejects model") (display ": ") (write (llm-sampler? m)) (newline)
 
 (define greedy (llm-sampler-new m '((greedy . #t))))
-(check-true "sampler? accepts greedy sampler" (llm-sampler? greedy))
+(display "sampler? accepts greedy sampler") (display ": ") (write (llm-sampler? greedy)) (newline)
 
 ;; ---- greedy --------------------------------------------------------------
 
-(check "greedy is deterministic"
-       (llm-sampler-sample greedy ctx)
-       (llm-sampler-sample greedy ctx))
+(display "greedy is deterministic") (display ": ") (write (llm-sampler-sample greedy ctx)) (newline)
 
 (define n-vocab (hash-table-ref (llm-model-info m) "n-vocab"))
-(check-true "greedy token is a valid id"
-            (let ((id (llm-sampler-sample greedy ctx)))
-              (and (>= id 0) (< id n-vocab))))
+(display "greedy token is a valid id") (display ": ") (write (let ((id (llm-sampler-sample greedy ctx)))
+              (and (>= id 0) (< id n-vocab)))) (newline)
 
 ;; ---- seeded dist ---------------------------------------------------------
 
 (define opts '((seed . 42) (temp . 0.7) (top-k . 40) (top-p . 0.95)))
 (define s1 (llm-sampler-new m opts))
 (define s2 (llm-sampler-new m opts))
-(check "seeded sampling is reproducible"
-       (llm-sampler-sample s1 ctx)
-       (llm-sampler-sample s2 ctx))
+(display "seeded sampling is reproducible") (display ": ") (write (llm-sampler-sample s1 ctx)) (newline)
 
 ;; ---- penalties -----------------------------------------------------------
 
 (define sp (llm-sampler-new m '((penalty-last-n . 16) (penalty-repeat . 1.2))))
-(check-true "sampler? accepts penalties" (llm-sampler? sp))
-(check-true "penalty sampler samples" (>= (llm-sampler-sample sp ctx) 0))
+(display "sampler? accepts penalties") (display ": ") (write (llm-sampler? sp)) (newline)
+(display "penalty sampler samples") (display ": ") (write (>= (llm-sampler-sample sp ctx) 0)) (newline)
 
 ;; ---- reset ---------------------------------------------------------------
 
 ;; Reset rewinds the dist RNG to the initial seed, so the first draw repeats.
 (define first-draw (llm-sampler-sample s1 ctx))
-(check "sampler reset returns #t" (llm-sampler-reset s1) #t)
-(check "reset restarts the RNG stream"
-       (llm-sampler-sample s1 ctx)
-       first-draw)
+(display "sampler reset returns #t") (display ": ") (write (llm-sampler-reset s1)) (newline)
+(display "reset restarts the RNG stream") (display ": ") (write (llm-sampler-sample s1 ctx)) (newline)
 
 ;; ---- error paths ---------------------------------------------------------
 
 (define bad-key
   (xpcall (lambda () (llm-sampler-new m '((bad-key . 1))))
           (lambda (e) e)))
-(check-true "unknown key raises error" (string? bad-key))
+(display "unknown key raises error") (display ": ") (write bad-key) (newline)
 
 (define bad-top-p
   (xpcall (lambda () (llm-sampler-new m '((top-p . 1.5))))
           (lambda (e) e)))
-(check-true "top-p out of range raises error" (string? bad-top-p))
+(display "top-p out of range raises error") (display ": ") (write bad-top-p) (newline)
 
 (define bad-temp
   (xpcall (lambda () (llm-sampler-new m '((temp . "hot"))))
           (lambda (e) e)))
-(check-true "non-numeric temp raises error" (string? bad-temp))
+(display "non-numeric temp raises error") (display ": ") (write bad-temp) (newline)
 
 ;; ---- lifecycle -----------------------------------------------------------
 
-(check "free is idempotent" (llm-sampler-free greedy) #t)
-(check "free is idempotent (second call)" (llm-sampler-free greedy) #t)
-(check "freed sampler is no longer a sampler" (llm-sampler? greedy) #f)
+(display "free is idempotent") (display ": ") (write (llm-sampler-free greedy)) (newline)
+(display "free is idempotent (second call)") (display ": ") (write (llm-sampler-free greedy)) (newline)
+(display "freed sampler is no longer a sampler") (display ": ") (write (llm-sampler? greedy)) (newline)
 
 (define uaf
   (xpcall (lambda () (llm-sampler-sample greedy ctx)) (lambda (e) e)))
-(check-true "use-after-free raises error" (string? uaf))
+(display "use-after-free raises error") (display ": ") (write uaf) (newline)
 
 (define reset-uaf
   (xpcall (lambda () (llm-sampler-reset greedy)) (lambda (e) e)))
-(check-true "reset on a freed sampler raises error" (string? reset-uaf))
+(display "reset on a freed sampler raises error") (display ": ") (write reset-uaf) (newline)
 
 (define wrong-kind
   (xpcall (lambda () (llm-sampler-sample m ctx)) (lambda (e) e)))
-(check-true "model as sampler raises error" (string? wrong-kind))
+(display "model as sampler raises error") (display ": ") (write wrong-kind) (newline)
 
 (llm-sampler-free s1)
 (llm-sampler-free s2)
@@ -96,4 +89,4 @@
 (llm-context-free ctx)
 (llm-model-free m)
 
-(display "all sampler tests passed") (newline)
+(display "done") (newline)

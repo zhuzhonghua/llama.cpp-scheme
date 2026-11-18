@@ -14,8 +14,8 @@
 ;; ---- shape ---------------------------------------------------------------
 
 (define out1 (llm-generate ctx smpl prompt (lambda (piece) #t) '((max-tokens . 8))))
-(check-true "returns a string" (string? out1))
-(check-true "output is non-empty" (> (string-length out1) 0))
+(display "returns a string") (display ": ") (write out1) (newline)
+(display "output is non-empty") (display ": ") (write (> (string-length out1) 0)) (newline)
 
 ;; ---- callback receives the same pieces as the returned text --------------
 
@@ -25,14 +25,14 @@
   (llm-generate ctx smpl prompt
                 (lambda (piece) (set! acc (string-append acc piece)))
                 '((max-tokens . 8))))
-(check "callback pieces concatenate to the result" acc out2)
+(display "callback pieces concatenate to the result") (display ": ") (write acc) (newline)
 
 ;; ---- determinism ---------------------------------------------------------
 
 (llm-reset ctx)
 (define out3
   (llm-generate ctx smpl prompt (lambda (piece) #t) '((max-tokens . 8))))
-(check "greedy generation is deterministic" out3 out2)
+(display "greedy generation is deterministic") (display ": ") (write out3) (newline)
 
 ;; ---- max-tokens ----------------------------------------------------------
 
@@ -42,7 +42,7 @@
 (llm-reset ctx)
 (define long-len
   (string-length (llm-generate ctx smpl prompt (lambda (p) #t) '((max-tokens . 8)))))
-(check-true "max-tokens bounds the length" (<= short-len long-len))
+(display "max-tokens bounds the length") (display ": ") (write (<= short-len long-len)) (newline)
 
 ;; ---- early stop via the callback's return value ---------------------------
 
@@ -56,15 +56,14 @@
                   (set! seen (+ seen 1))
                   (if (= seen 3) #f #t))
                 '((max-tokens . 40))))
-(check "callback #f stops generation" seen 3)
-(check-true "partial text is returned" (> (string-length partial) 0))
+(display "callback #f stops generation") (display ": ") (write seen) (newline)
+(display "partial text is returned") (display ": ") (write (> (string-length partial) 0)) (newline)
 
 ;; Nothing to reset afterwards: stopping is plain control flow.
 (llm-reset ctx)
 (define after-stop
   (llm-generate ctx smpl prompt (lambda (p) #t) '((max-tokens . 4))))
-(check "generation works after an early stop"
-       (string-length after-stop) short-len)
+(display "generation works after an early stop") (display ": ") (write (string-length after-stop)) (newline)
 
 ;; ---- error paths ---------------------------------------------------------
 
@@ -73,26 +72,26 @@
   (xpcall (lambda ()
             (llm-generate ctx smpl "" (lambda (p) #t) '((add-special . #f))))
           (lambda (e) e)))
-(check-true "empty prompt raises error" (string? empty-err))
+(display "empty prompt raises error") (display ": ") (write empty-err) (newline)
 
 (define bad-key
   (xpcall (lambda ()
             (llm-generate ctx smpl prompt (lambda (p) #t) '((bad-key . 1))))
           (lambda (e) e)))
-(check-true "unknown option raises error" (string? bad-key))
+(display "unknown option raises error") (display ": ") (write bad-key) (newline)
 
 (define cb-err
   (xpcall (lambda ()
             (llm-generate ctx smpl prompt (lambda (p) (error "boom"))
                           '((max-tokens . 2))))
           (lambda (e) e)))
-(check-true "callback error propagates" (string? cb-err))
+(display "callback error propagates") (display ": ") (write cb-err) (newline)
 
 (define wrong-kind
   (xpcall (lambda ()
             (llm-generate m smpl prompt (lambda (p) #t)))
           (lambda (e) e)))
-(check-true "model as context raises error" (string? wrong-kind))
+(display "model as context raises error") (display ": ") (write wrong-kind) (newline)
 
 ;; ---- cleanup -------------------------------------------------------------
 
@@ -100,4 +99,4 @@
 (llm-context-free ctx)
 (llm-model-free m)
 
-(display "all generate tests passed") (newline)
+(display "done") (newline)

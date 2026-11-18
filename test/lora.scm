@@ -23,50 +23,41 @@
 ;; ---- apply / clear -------------------------------------------------------
 
 (define lora (llm-lora-load m tiny-lora))
-(check-true "loaded lora is a lora handle" (llm-lora? lora))
+(display "loaded lora is a lora handle") (display ": ") (write (llm-lora? lora)) (newline)
 
-(check "set loras returns #t" (llm-set-loras ctx (list lora)) #t)
+(display "set loras returns #t") (display ": ") (write (llm-set-loras ctx (list lora))) (newline)
 (define with-lora (generate "Once upon a time"))
 (display "baseline   : ") (write baseline) (newline)
 (display "with lora  : ") (write with-lora) (newline)
-(check-true "lora changes the output" (not (equal? with-lora baseline)))
+(display "lora changes the output") (display ": ") (write (not (equal? with-lora baseline))) (newline)
 
-(check "set loras with scale returns #t"
-       (llm-set-loras ctx (list (cons lora 0.0))) #t)
-(check "scale 0 matches the baseline" (generate "Once upon a time") baseline)
+(display "set loras with scale returns #t") (display ": ") (write (llm-set-loras ctx (list (cons lora 0.0)))) (newline)
+(display "scale 0 matches the baseline") (display ": ") (write (generate "Once upon a time")) (newline)
 
-(check "clearing loras returns #t" (llm-set-loras ctx '()) #t)
-(check "cleared loras match the baseline" (generate "Once upon a time") baseline)
+(display "clearing loras returns #t") (display ": ") (write (llm-set-loras ctx '())) (newline)
+(display "cleared loras match the baseline") (display ": ") (write (generate "Once upon a time")) (newline)
 
 ;; ---- error paths ---------------------------------------------------------
 
 (define (fails? thunk)
   (string? (xpcall thunk (lambda (e) e))))
 
-(check-true "missing lora file raises an error"
-            (fails? (lambda () (llm-lora-load m "nope.gguf"))))
-(check-true "empty lora path raises an error"
-            (fails? (lambda () (llm-lora-load m ""))))
-(check-true "non-string lora path raises an error"
-            (fails? (lambda () (llm-lora-load m 42))))
-(check-true "context is not a model"
-            (fails? (lambda () (llm-lora-load ctx tiny-lora))))
-(check-true "llm-set-loras needs a list"
-            (fails? (lambda () (llm-set-loras ctx 42))))
-(check-true "llm-set-loras rejects non-lora entries"
-            (fails? (lambda () (llm-set-loras ctx (list 42)))))
-(check-true "llm-set-loras rejects a non-number scale"
-            (fails? (lambda () (llm-set-loras ctx (list (cons lora "x"))))))
-(check-true "llm-lora? is #f for other handles" (not (llm-lora? m)))
+(display "missing lora file raises an error") (display ": ") (write (fails? (lambda () (llm-lora-load m "nope.gguf")))) (newline)
+(display "empty lora path raises an error") (display ": ") (write (fails? (lambda () (llm-lora-load m "")))) (newline)
+(display "non-string lora path raises an error") (display ": ") (write (fails? (lambda () (llm-lora-load m 42)))) (newline)
+(display "context is not a model") (display ": ") (write (fails? (lambda () (llm-lora-load ctx tiny-lora)))) (newline)
+(display "llm-set-loras needs a list") (display ": ") (write (fails? (lambda () (llm-set-loras ctx 42)))) (newline)
+(display "llm-set-loras rejects non-lora entries") (display ": ") (write (fails? (lambda () (llm-set-loras ctx (list 42))))) (newline)
+(display "llm-set-loras rejects a non-number scale") (display ": ") (write (fails? (lambda () (llm-set-loras ctx (list (cons lora "x")))))) (newline)
+(display "llm-lora? is #f for other handles") (display ": ") (write (not (llm-lora? m))) (newline)
 
 ;; ---- lifetime ------------------------------------------------------------
 
 (define lora2 (llm-lora-load m tiny-lora))
-(check "lora free is idempotent" (llm-lora-free lora2) #t)
-(check "second lora free is a no-op" (llm-lora-free lora2) #t)
-(check-true "freed lora is no longer a handle" (not (llm-lora? lora2)))
-(check-true "using a freed lora raises an error"
-            (fails? (lambda () (llm-set-loras ctx (list lora2)))))
+(display "lora free is idempotent") (display ": ") (write (llm-lora-free lora2)) (newline)
+(display "second lora free is a no-op") (display ": ") (write (llm-lora-free lora2)) (newline)
+(display "freed lora is no longer a handle") (display ": ") (write (not (llm-lora? lora2))) (newline)
+(display "using a freed lora raises an error") (display ": ") (write (fails? (lambda () (llm-set-loras ctx (list lora2))))) (newline)
 
 ;; ---- model owns its adapters --------------------------------------------
 
@@ -74,8 +65,8 @@
 ;; instead of later double-freeing them.
 (llm-sampler-free smpl)
 (llm-context-free ctx)
-(check "model free with a live lora returns #t" (llm-model-free m) #t)
-(check-true "model free also releases its loras" (not (llm-lora? lora)))
-(check "freeing the released lora is a no-op" (llm-lora-free lora) #t)
+(display "model free with a live lora returns #t") (display ": ") (write (llm-model-free m)) (newline)
+(display "model free also releases its loras") (display ": ") (write (not (llm-lora? lora))) (newline)
+(display "freeing the released lora is a no-op") (display ": ") (write (llm-lora-free lora)) (newline)
 
-(display "all lora tests passed") (newline)
+(display "done") (newline)

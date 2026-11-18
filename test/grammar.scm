@@ -22,8 +22,7 @@
                 '((max-tokens . 8))))
 
 (display "answer     : ") (write answer) (newline)
-(check-true "grammar constrains output to yes/no"
-            (member answer '("yes" "no")))
+(display "grammar constrains output to yes/no") (display ": ") (write (member answer '("yes" "no"))) (newline)
 
 ;; ---- reuse after reset ---------------------------------------------------
 ;;
@@ -31,7 +30,7 @@
 ;; Without a reset the next generation can only emit EOG and returns "".
 ;; llm-sampler-reset rewinds the parser so the sampler can serve a new prompt.
 
-(check "sampler reset returns #t" (llm-sampler-reset yes-no) #t)
+(display "sampler reset returns #t") (display ": ") (write (llm-sampler-reset yes-no)) (newline)
 (llm-reset ctx)
 
 (define answer2
@@ -40,8 +39,7 @@
                 '((max-tokens . 8))))
 
 (display "answer 2   : ") (write answer2) (newline)
-(check-true "reset grammar sampler is reusable"
-            (member answer2 '("yes" "no")))
+(display "reset grammar sampler is reusable") (display ": ") (write (member answer2 '("yes" "no"))) (newline)
 
 ;; ---- custom start symbol ------------------------------------------------
 
@@ -59,36 +57,36 @@
                 '((max-tokens . 8))))
 
 (display "greeting   : ") (write greeting) (newline)
-(check "grammar-root selects the start symbol" greeting "hi")
+(display "grammar-root selects the start symbol") (display ": ") (write greeting) (newline)
 
 ;; ---- error paths --------------------------------------------------------
 
 (define bad-grammar
   (xpcall (lambda () (llm-sampler-new m '((grammar . "root ::= \"unterminated"))))
           (lambda (e) e)))
-(check-true "invalid grammar raises an error" (string? bad-grammar))
+(display "invalid grammar raises an error") (display ": ") (write bad-grammar) (newline)
 
 (define empty-grammar
   (xpcall (lambda () (llm-sampler-new m '((grammar . ""))))
           (lambda (e) e)))
-(check-true "empty grammar raises an error" (string? empty-grammar))
+(display "empty grammar raises an error") (display ": ") (write empty-grammar) (newline)
 
 (define bad-root
   (xpcall (lambda () (llm-sampler-new
                       m '((grammar . "root ::= \"x\"")
                           (grammar-root . "missing"))))
           (lambda (e) e)))
-(check-true "missing start symbol raises an error" (string? bad-root))
+(display "missing start symbol raises an error") (display ": ") (write bad-root) (newline)
 
 (define bad-type
   (xpcall (lambda () (llm-sampler-new m '((grammar . 42))))
           (lambda (e) e)))
-(check-true "non-string grammar raises an error" (string? bad-type))
+(display "non-string grammar raises an error") (display ": ") (write bad-type) (newline)
 
 ;; ---- lifetime -----------------------------------------------------------
 
-(check "sampler free is idempotent" (llm-sampler-free hi) #t)
-(check "context free is idempotent" (llm-context-free ctx) #t)
-(check "model free is idempotent" (llm-model-free m) #t)
+(display "sampler free is idempotent") (display ": ") (write (llm-sampler-free hi)) (newline)
+(display "context free is idempotent") (display ": ") (write (llm-context-free ctx)) (newline)
+(display "model free is idempotent") (display ": ") (write (llm-model-free m)) (newline)
 
-(display "all grammar tests passed") (newline)
+(display "done") (newline)

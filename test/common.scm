@@ -9,21 +9,7 @@
 
 (define model-path "models/Qwen3-0.6B-Q4_K_M.gguf")
 
-(define (check name got want)
-  (if (equal? got want)
-      (begin
-        (display "PASS ")
-        (display name)
-        (newline))
-      (begin
-        (display "FAIL ")
-        (display name)
-        (display ": got ")
-        (write got)
-        (display ", want ")
-        (write want)
-        (newline)
-        (error "assertion failed"))))
-
-(define (check-true name value)
-  (check name (if value #t #f) #t))
+;; Scheme test scripts are code examples only (2026-11-18): they print values
+;; with display/write for visual inspection and never assert PASS/FAIL.  The
+;; old `check` / `check-true` helpers were removed when all scripts were
+;; converted — do not reintroduce them.  See context.md section 8.

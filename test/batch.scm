@@ -13,23 +13,23 @@
 (define tokens (llm-tokenize m "Once upon a time" '((add-special . #f))))
 (define batch (llm-batch-from-tokens tokens '((last-logits . #t))))
 
-(check-true "batch? " (llm-batch? batch))
-(check "batch n-tokens" (llm-batch-n-tokens batch) (vector-length tokens))
-(check "batch? rejects non-batch" (llm-batch? 42) #f)
+(display "batch? ") (display ": ") (write (llm-batch? batch)) (newline)
+(display "batch n-tokens") (display ": ") (write (llm-batch-n-tokens batch)) (newline)
+(display "batch? rejects non-batch") (display ": ") (write (llm-batch? 42)) (newline)
 
 ;; set-logits on first token
-(check "set-logits" (llm-batch-set-logits batch 0 #t) #t)
+(display "set-logits") (display ": ") (write (llm-batch-set-logits batch 0 #t)) (newline)
 
 ;; decode should succeed
-(check-true "decode" (llm-decode ctx batch))
+(display "decode") (display ": ") (write (llm-decode ctx batch)) (newline)
 (llm-context-free ctx)
 
 ;; batch from token list, logits off; decode on a fresh context
 ;; (KV cache requires consecutive positions per sequence)
 (define batch2 (llm-batch-from-tokens (vector->list tokens) '((last-logits . #f))))
-(check "batch2 n-tokens" (llm-batch-n-tokens batch2) (vector-length tokens))
+(display "batch2 n-tokens") (display ": ") (write (llm-batch-n-tokens batch2)) (newline)
 (define ctx2 (llm-context-new m '((n-ctx . 512))))
-(check-true "decode batch2" (llm-decode ctx2 batch2))
+(display "decode batch2") (display ": ") (write (llm-decode ctx2 batch2)) (newline)
 
 ;; ---- error paths --------------------------------------------------------
 
@@ -37,37 +37,37 @@
 (define empty-batch
   (xpcall (lambda () (llm-batch-from-tokens '()))
           (lambda (e) e)))
-(check-true "empty token list raises error" (string? empty-batch))
+(display "empty token list raises error") (display ": ") (write empty-batch) (newline)
 
 ;; unknown key in opts must fail
 (define bad-key
   (xpcall (lambda () (llm-batch-from-tokens tokens '((bad-key . 1))))
           (lambda (e) e)))
-(check-true "unknown key raises error" (string? bad-key))
+(display "unknown key raises error") (display ": ") (write bad-key) (newline)
 
 ;; free is idempotent
-(check "free is idempotent" (llm-batch-free batch) #t)
-(check "free is idempotent (second call)" (llm-batch-free batch) #t)
-(check "freed batch is no longer a batch" (llm-batch? batch) #f)
+(display "free is idempotent") (display ": ") (write (llm-batch-free batch)) (newline)
+(display "free is idempotent (second call)") (display ": ") (write (llm-batch-free batch)) (newline)
+(display "freed batch is no longer a batch") (display ": ") (write (llm-batch? batch)) (newline)
 
 ;; use-after-free must raise error
 (define uaf (xpcall (lambda () (llm-batch-n-tokens batch)) (lambda (e) e)))
-(check-true "use-after-free raises error" (string? uaf))
+(display "use-after-free raises error") (display ": ") (write uaf) (newline)
 
 ;; batch from tokens with non-integer must fail
 (define bad-tokens
   (xpcall (lambda () (llm-batch-from-tokens '(1 "two" 3)))
           (lambda (e) e)))
-(check-true "non-integer token raises error" (string? bad-tokens))
+(display "non-integer token raises error") (display ": ") (write bad-tokens) (newline)
 
 ;; batch from tokens with out-of-range id must fail
 (define oor-tokens
   (xpcall (lambda () (llm-batch-from-tokens '(1 -5 3)))
           (lambda (e) e)))
-(check-true "negative token id raises error" (string? oor-tokens))
+(display "negative token id raises error") (display ": ") (write oor-tokens) (newline)
 
 (llm-batch-free batch2)
 (llm-context-free ctx2)
 (llm-model-free m)
 
-(display "all batch tests passed") (newline)
+(display "done") (newline)

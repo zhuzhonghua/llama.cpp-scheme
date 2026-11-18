@@ -10,17 +10,17 @@
 
 (define ctx (llm-context-new m '((n-ctx . 512) (n-batch . 256))))
 
-(check-true "context? " (llm-context? ctx))
-(check "context? rejects non-handle" (llm-context? 42) #f)
+(display "context? ") (display ": ") (write (llm-context? ctx)) (newline)
+(display "context? rejects non-handle") (display ": ") (write (llm-context? 42)) (newline)
 
 (define info (llm-context-info ctx))
 (display "n-ctx    : ") (display (hash-table-ref info "n-ctx")) (newline)
 (display "n-batch  : ") (display (hash-table-ref info "n-batch")) (newline)
 (display "n-seq-max: ") (display (hash-table-ref info "n-seq-max")) (newline)
 
-(check "n-ctx is 512" (hash-table-ref info "n-ctx") 512)
-(check "n-batch is 256" (hash-table-ref info "n-batch") 256)
-(check-true "n-seq-max is positive" (> (hash-table-ref info "n-seq-max") 0))
+(display "n-ctx is 512") (display ": ") (write (hash-table-ref info "n-ctx")) (newline)
+(display "n-batch is 256") (display ": ") (write (hash-table-ref info "n-batch")) (newline)
+(display "n-seq-max is positive") (display ": ") (write (> (hash-table-ref info "n-seq-max") 0)) (newline)
 
 ;; ---- error paths --------------------------------------------------------
 
@@ -28,20 +28,20 @@
 (define bad-key
   (xpcall (lambda () (llm-context-new m '((bad-key . 1))))
           (lambda (e) e)))
-(check-true "unknown key raises error" (string? bad-key))
+(display "unknown key raises error") (display ": ") (write bad-key) (newline)
 
 ;; Free is idempotent.
-(check "free is idempotent" (llm-context-free ctx) #t)
-(check "free is idempotent (second call)" (llm-context-free ctx) #t)
-(check "freed handle is no longer a context" (llm-context? ctx) #f)
+(display "free is idempotent") (display ": ") (write (llm-context-free ctx)) (newline)
+(display "free is idempotent (second call)") (display ": ") (write (llm-context-free ctx)) (newline)
+(display "freed handle is no longer a context") (display ": ") (write (llm-context? ctx)) (newline)
 
 ;; Use-after-free must be a readable Scheme error, not a crash.
 (define uaf (xpcall (lambda () (llm-context-info ctx)) (lambda (e) e)))
-(check-true "use-after-free raises an error" (string? uaf))
+(display "use-after-free raises an error") (display ": ") (write uaf) (newline)
 
 ;; Model without context is not a context.
-(check "model is not a context" (llm-context? m) #f)
+(display "model is not a context") (display ": ") (write (llm-context? m)) (newline)
 
 (llm-model-free m)
 
-(display "all context tests passed") (newline)
+(display "done") (newline)

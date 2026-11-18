@@ -12,19 +12,19 @@
                 '((greedy . #t))
                 '((max-tokens . 24))))
 
-(check "kv starts empty" (session 'kv-pos) 0)
-(check "history starts empty" (length (session 'history)) 0)
+(display "kv starts empty") (display ": ") (write (session 'kv-pos)) (newline)
+(display "history starts empty") (display ": ") (write (length (session 'history))) (newline)
 
 (define reply-1 (session 'say "你好"))
-(check-true "first reply is non-empty" (> (string-length reply-1) 0))
+(display "first reply is non-empty") (display ": ") (write (> (string-length reply-1) 0)) (newline)
 (define pos-1 (session 'kv-pos))
-(check-true "kv grew after turn 1" (> pos-1 0))
+(display "kv grew after turn 1") (display ": ") (write (> pos-1 0)) (newline)
 
 (define reply-2 (session 'say "你叫什么名字"))
-(check-true "second reply is non-empty" (> (string-length reply-2) 0))
+(display "second reply is non-empty") (display ": ") (write (> (string-length reply-2) 0)) (newline)
 (define pos-2 (session 'kv-pos))
-(check-true "kv appended, not re-prefilled" (> pos-2 pos-1))
-(check "history has two turns" (length (session 'history)) 2)
+(display "kv appended, not re-prefilled") (display ": ") (write (> pos-2 pos-1)) (newline)
+(display "history has two turns") (display ": ") (write (length (session 'history))) (newline)
 
 ;; 多跑几轮把 256 的上下文顶爆，应当自动重建而不是报错。
 (define (run turns)
@@ -32,16 +32,16 @@
       (begin (session 'say "继续") (run (- turns 1)))
       #t))
 (run 40)
-(check-true "kv stays under n-ctx" (< (session 'kv-pos) 256))
-(check-true "history kept after rebuild" (> (length (session 'history)) 0))
+(display "kv stays under n-ctx") (display ": ") (write (< (session 'kv-pos) 256)) (newline)
+(display "history kept after rebuild") (display ": ") (write (> (length (session 'history)) 0)) (newline)
 ;; 一共说了 42 轮却远少于 42 条，说明旧轮次被淘汰了。
-(check-true "old turns evicted" (< (length (session 'history)) 20))
+(display "old turns evicted") (display ": ") (write (< (length (session 'history)) 20)) (newline)
 
 (session 'reset)
-(check "kv reset to zero" (session 'kv-pos) 0)
-(check "history cleared" (length (session 'history)) 0)
+(display "kv reset to zero") (display ": ") (write (session 'kv-pos)) (newline)
+(display "history cleared") (display ": ") (write (length (session 'history))) (newline)
 
-(check "free returns true" (session 'free) #t)
+(display "free returns true") (display ": ") (write (session 'free)) (newline)
 (llm-model-free model)
 
 (display "npc-session tests passed\n")

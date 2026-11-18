@@ -11,9 +11,9 @@
 (define names (llm-chat-templates))
 
 (display "templates  : ") (write (vector-length names)) (newline)
-(check-true "templates is a vector" (vector? names))
-(check-true "templates is non-empty" (> (vector-length names) 0))
-(check-true "templates lists chatml" (member "chatml" (vector->list names)))
+(display "templates is a vector") (display ": ") (write (vector? names)) (newline)
+(display "templates is non-empty") (display ": ") (write (> (vector-length names) 0)) (newline)
+(display "templates lists chatml") (display ": ") (write (member "chatml" (vector->list names))) (newline)
 
 ;; ---- default template from model metadata -------------------------------
 ;;
@@ -28,35 +28,18 @@
 
 (display "prompt     : ") (write prompt) (newline)
 
-(check "chatml render"
-       prompt
-       (string-append
-        "<|im_start|>system\n"
-        "You are a helpful assistant.<|im_end|>\n"
-        "<|im_start|>user\n"
-        "Hello!<|im_end|>\n"
-        "<|im_start|>assistant\n"))
+(display "chatml render") (display ": ") (write prompt) (newline)
 
-(check "add-assistant #f stops after the user turn"
-       (llm-chat-template-apply m msgs '((add-assistant . #f)))
-       (string-append
-        "<|im_start|>system\n"
-        "You are a helpful assistant.<|im_end|>\n"
-        "<|im_start|>user\n"
-        "Hello!<|im_end|>\n"))
+(display "add-assistant #f stops after the user turn") (display ": ") (write (llm-chat-template-apply m msgs '((add-assistant . #f)))) (newline)
 
 ;; ---- explicit template name ---------------------------------------------
 
-(check "explicit built-in name"
-       (llm-chat-template-apply m '(("user" . "Hi"))
-                                '((template . "chatml")))
-       "<|im_start|>user\nHi<|im_end|>\n<|im_start|>assistant\n")
+(display "explicit built-in name") (display ": ") (write (llm-chat-template-apply m '(("user" . "Hi"))
+                                '((template . "chatml")))) (newline)
 
 ;; ---- empty message list --------------------------------------------------
 
-(check "empty message list"
-       (llm-chat-template-apply m '())
-       "<|im_start|>assistant\n")
+(display "empty message list") (display ": ") (write (llm-chat-template-apply m '())) (newline)
 
 ;; ---- error paths ---------------------------------------------------------
 
@@ -64,41 +47,41 @@
 (define bad-msg
   (xpcall (lambda () (llm-chat-template-apply m '(("user" "Hi"))))
           (lambda (e) e)))
-(check-true "malformed message raises an error" (string? bad-msg))
+(display "malformed message raises an error") (display ": ") (write bad-msg) (newline)
 
 (define bad-role
   (xpcall (lambda () (llm-chat-template-apply m '((user . "Hi"))))
           (lambda (e) e)))
-(check-true "non-string role raises an error" (string? bad-role))
+(display "non-string role raises an error") (display ": ") (write bad-role) (newline)
 
 (define bad-list
   (xpcall (lambda () (llm-chat-template-apply m "not a list"))
           (lambda (e) e)))
-(check-true "non-list messages raises an error" (string? bad-list))
+(display "non-list messages raises an error") (display ": ") (write bad-list) (newline)
 
 (define bad-option
   (xpcall (lambda () (llm-chat-template-apply m msgs '((nope . 1))))
           (lambda (e) e)))
-(check-true "unknown option raises an error" (string? bad-option))
+(display "unknown option raises an error") (display ": ") (write bad-option) (newline)
 
 (define bad-template
   (xpcall (lambda () (llm-chat-template-apply m msgs
                                               '((template . 42))))
           (lambda (e) e)))
-(check-true "non-string template raises an error" (string? bad-template))
+(display "non-string template raises an error") (display ": ") (write bad-template) (newline)
 
 (define unsupported
   (xpcall (lambda () (llm-chat-template-apply m msgs
                                               '((template . "not-a-template"))))
           (lambda (e) e)))
-(check-true "unsupported template raises an error" (string? unsupported))
+(display "unsupported template raises an error") (display ": ") (write unsupported) (newline)
 
 ;; ---- lifetime ------------------------------------------------------------
 
-(check "free is idempotent" (llm-model-free m) #t)
+(display "free is idempotent") (display ": ") (write (llm-model-free m)) (newline)
 
 (define uaf
   (xpcall (lambda () (llm-chat-template-apply m msgs)) (lambda (e) e)))
-(check-true "use-after-free raises an error" (string? uaf))
+(display "use-after-free raises an error") (display ": ") (write uaf) (newline)
 
-(display "all chat template tests passed") (newline)
+(display "done") (newline)

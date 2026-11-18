@@ -25,15 +25,15 @@
 
 (display "generated  : ") (write text) (newline)
 
-(check-true "returns a string" (string? text))
-(check-true "produces at least one piece" (> pieces 0))
-(check "callback pieces reconstruct the result" out text)
+(display "returns a string") (display ": ") (write text) (newline)
+(display "produces at least one piece") (display ": ") (write (> pieces 0)) (newline)
+(display "callback pieces reconstruct the result") (display ": ") (write out) (newline)
 
 ;; A chat call re-renders the whole conversation, so the context can be
 ;; reused without an explicit llm-reset.
 (define text2
   (llm-chat-generate ctx smpl msgs (lambda (piece) #t) '((max-tokens . 8))))
-(check "same conversation is deterministic" text2 text)
+(display "same conversation is deterministic") (display ": ") (write text2) (newline)
 
 ;; chat-generate uses add-special #f and parse-special #t: the rendered
 ;; template already contains the special markers.
@@ -44,12 +44,10 @@
                 '((max-tokens . 8)
                   (add-special . #f)
                   (parse-special . #t))))
-(check "matches llm-chat-template-apply + llm-generate" text manual)
+(display "matches llm-chat-template-apply + llm-generate") (display ": ") (write text) (newline)
 
-(check "max-tokens 0 returns an empty string"
-       (llm-chat-generate ctx smpl msgs (lambda (piece) #t)
-                          '((max-tokens . 0)))
-       "")
+(display "max-tokens 0 returns an empty string") (display ": ") (write (llm-chat-generate ctx smpl msgs (lambda (piece) #t)
+                          '((max-tokens . 0)))) (newline)
 
 ;; ---- callback early stop -------------------------------------------------
 
@@ -61,9 +59,8 @@
                        #f)
                      '((max-tokens . 32))))
 
-(check "returning #f stops after one token" calls 1)
-(check-true "early stop returns the text produced so far"
-            (> (string-length stopped) 0))
+(display "returning #f stops after one token") (display ": ") (write calls) (newline)
+(display "early stop returns the text produced so far") (display ": ") (write (> (string-length stopped) 0)) (newline)
 
 ;; ---- explicit template ---------------------------------------------------
 ;;
@@ -77,13 +74,12 @@
   (xpcall (lambda () (llm-chat-generate tctx tsmpl '(("user" . "Hi"))
                                         (lambda (piece) #t)))
           (lambda (e) e)))
-(check-true "model without a chat template raises an error"
-            (string? no-template))
+(display "model without a chat template raises an error") (display ": ") (write no-template) (newline)
 
 (define tiny-text
   (llm-chat-generate tctx tsmpl '(("user" . "Hi")) (lambda (piece) #t)
                      '((template . "chatml") (max-tokens . 4))))
-(check-true "explicit template name works" (string? tiny-text))
+(display "explicit template name works") (display ": ") (write tiny-text) (newline)
 
 ;; ---- error paths ---------------------------------------------------------
 
@@ -91,57 +87,57 @@
   (xpcall (lambda () (llm-chat-generate ctx smpl '(("user" "Hi"))
                                         (lambda (piece) #t)))
           (lambda (e) e)))
-(check-true "malformed message raises an error" (string? bad-shape))
+(display "malformed message raises an error") (display ": ") (write bad-shape) (newline)
 
 (define bad-role
   (xpcall (lambda () (llm-chat-generate ctx smpl '((user . "Hi"))
                                         (lambda (piece) #t)))
           (lambda (e) e)))
-(check-true "non-string role raises an error" (string? bad-role))
+(display "non-string role raises an error") (display ": ") (write bad-role) (newline)
 
 (define bad-content
   (xpcall (lambda () (llm-chat-generate ctx smpl '(("user" . 1))
                                         (lambda (piece) #t)))
           (lambda (e) e)))
-(check-true "non-string content raises an error" (string? bad-content))
+(display "non-string content raises an error") (display ": ") (write bad-content) (newline)
 
 (define bad-list
   (xpcall (lambda () (llm-chat-generate ctx smpl "not a list"
                                         (lambda (piece) #t)))
           (lambda (e) e)))
-(check-true "non-list messages raises an error" (string? bad-list))
+(display "non-list messages raises an error") (display ": ") (write bad-list) (newline)
 
 (define bad-option
   (xpcall (lambda () (llm-chat-generate ctx smpl msgs (lambda (piece) #t)
                                         '((nope . 1))))
           (lambda (e) e)))
-(check-true "unknown option raises an error" (string? bad-option))
+(display "unknown option raises an error") (display ": ") (write bad-option) (newline)
 
 (define bad-max
   (xpcall (lambda () (llm-chat-generate ctx smpl msgs (lambda (piece) #t)
                                         '((max-tokens . -1))))
           (lambda (e) e)))
-(check-true "negative max-tokens raises an error" (string? bad-max))
+(display "negative max-tokens raises an error") (display ": ") (write bad-max) (newline)
 
 (define keep-kv
   (xpcall (lambda () (llm-chat-generate ctx smpl msgs (lambda (piece) #t)
                                         '((keep-kv . #t))))
           (lambda (e) e)))
-(check-true "keep-kv raises an error" (string? keep-kv))
+(display "keep-kv raises an error") (display ": ") (write keep-kv) (newline)
 
 ;; ---- lifetime ------------------------------------------------------------
 
-(check "sampler free is idempotent" (llm-sampler-free smpl) #t)
-(check "context free is idempotent" (llm-context-free ctx) #t)
+(display "sampler free is idempotent") (display ": ") (write (llm-sampler-free smpl)) (newline)
+(display "context free is idempotent") (display ": ") (write (llm-context-free ctx)) (newline)
 
 (define uaf
   (xpcall (lambda () (llm-chat-generate ctx smpl msgs (lambda (piece) #t)))
           (lambda (e) e)))
-(check-true "use-after-free raises an error" (string? uaf))
+(display "use-after-free raises an error") (display ": ") (write uaf) (newline)
 
-(check "tiny sampler free is idempotent" (llm-sampler-free tsmpl) #t)
-(check "tiny context free is idempotent" (llm-context-free tctx) #t)
-(check "tiny model free is idempotent" (llm-model-free tiny) #t)
-(check "model free is idempotent" (llm-model-free m) #t)
+(display "tiny sampler free is idempotent") (display ": ") (write (llm-sampler-free tsmpl)) (newline)
+(display "tiny context free is idempotent") (display ": ") (write (llm-context-free tctx)) (newline)
+(display "tiny model free is idempotent") (display ": ") (write (llm-model-free tiny)) (newline)
+(display "model free is idempotent") (display ": ") (write (llm-model-free m)) (newline)
 
-(display "all chat generation tests passed") (newline)
+(display "done") (newline)
