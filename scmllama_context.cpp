@@ -187,15 +187,39 @@ static Scheme::ValueT scmllama_stub_llm_reset(Scheme::VM* vm,
   return Scheme::scm_make_bool(vm, true);
 }
 
-// Number of tokens currently held in the KV cache for sequence 0.
-// Returns 0 when the cache is empty.  Used to continue generation without
-// re-prefilling an existing prompt (keep-kv option of llm-generate).
+// Number of tokens currently held in the KV cache for a sequence.  Optional
+// seq (default 0) selects which sequence: (llm-kv-pos ctx) or
+// (llm-kv-pos ctx seq).  Historically this only ever queried seq 0 (for
+// llm-generate's keep-kv option), so the default keeps that behaviour.
+// Returns 0 when the sequence has no KV.
 static Scheme::ValueT scmllama_stub_llm_kv_pos(Scheme::VM* vm,
-                                                Scheme::ValueT* value)
+                                                Scheme::ValueT* value,
+                                                Scheme::ValueT* rest)
 {
   static const char* const kWho = "llm-kv-pos";
   llama_context* ctx = Util::context_ptr(vm, value, kWho);
-  return Scheme::scm_make_int(vm, Util::kv_seq_used(ctx, 0));
+
+  llama_seq_id seq = 0;
+  if (rest && !Scheme::scm_is_null(vm, rest))
+  {
+    const int n = Scheme::scm_proper_list_len(vm, rest);
+    if (n != 1)
+      Util::error_raise(vm, "%s: expected at most one seq id", kWho);
+
+    Scheme::ValueT* seq_value = Scheme::scm_car(vm, rest);
+    if (!Scheme::scm_is_int(vm, seq_value))
+      Util::error_raise(vm, "%s: seq id expects an integer, got %s", kWho,
+                        Scheme::scm_typename(vm, seq_value));
+
+    const int64_t s = static_cast<int64_t>(Scheme::scm_get_int(vm, seq_value));
+    const int32_t n_seq_max = static_cast<int32_t>(llama_n_seq_max(ctx));
+    if (s < 0 || s >= n_seq_max)
+      Util::error_raise(vm, "%s: seq id out of range [0,%d): got %lld", kWho,
+                        n_seq_max, static_cast<long long>(s));
+    seq = static_cast<llama_seq_id>(s);
+  }
+
+  return Scheme::scm_make_int(vm, Util::kv_seq_used(ctx, seq));
 }
 
 // Remove KV cache cells of sequence 0 at positions [p0, p1).
@@ -244,6 +268,73 @@ static Scheme::ValueT scmllama_stub_llm_kv_shift(Scheme::VM* vm,
       static_cast<llama_pos>(Scheme::scm_get_int(vm, delta_value));
 
   llama_memory_seq_add(llama_get_memory(ctx), 0, p0, p1, delta);
+  return Scheme::scm_make_bool(vm, true);
+}
+
+// Copy KV cells of sequence `src` in [p0, p1) into sequence `dst`.  This is the
+// complement of llm-kv-remove/shift for multi-sequence contexts: both sequences
+// share the same cached prefix and can then diverge from the same position
+// (beam expand / fork).  With no optional positions the whole sequence is copied.
+// p0 = -1 means [0, p1), p1 = -1 means [p0, inf), matching the C API.
+// Optional args are passed positionally: (llm-kv-copy ctx src dst) or
+// (llm-kv-copy ctx src dst p0 p1).
+static Scheme::ValueT scmllama_stub_llm_kv_copy(Scheme::VM* vm,
+                                                 Scheme::ValueT* ctx_value,
+                                                 Scheme::ValueT* src_value,
+                                                 Scheme::ValueT* dst_value,
+                                                 Scheme::ValueT* rest)
+{
+  static const char* const kWho = "llm-kv-copy";
+  llama_context* ctx = Util::context_ptr(vm, ctx_value, kWho);
+
+  const int src = static_cast<int>(Scheme::scm_get_int(vm, src_value));
+  const int dst = static_cast<int>(Scheme::scm_get_int(vm, dst_value));
+
+  llama_pos p0 = -1;
+  llama_pos p1 = -1;
+  if (Scheme::scm_is_pair(vm, rest)) {
+    p0 = static_cast<llama_pos>(Scheme::scm_get_int(vm, Scheme::scm_car(vm, rest)));
+    Scheme::ValueT* second = Scheme::scm_cdr(vm, rest);
+    if (!Scheme::scm_is_pair(vm, second))
+      Util::error_raise(vm, "%s: p0 and p1 must be given together", kWho);
+    p1 = static_cast<llama_pos>(Scheme::scm_get_int(vm, Scheme::scm_car(vm, second)));
+    if (Scheme::scm_is_pair(vm, Scheme::scm_cdr(vm, second)))
+      Util::error_raise(vm, "%s: too many optional positions (expected p0 p1)",
+                        kWho);
+  }
+
+  const int32_t n_seq_max = static_cast<int32_t>(llama_n_seq_max(ctx));
+  if (src < 0 || src >= n_seq_max || dst < 0 || dst >= n_seq_max)
+    Util::error_raise(vm,
+                      "%s: seq id out of range [0,%d): got src=%d dst=%d",
+                      kWho, n_seq_max, src, dst);
+  if (p0 < -1 || p1 < -1)
+    Util::error_raise(vm,
+                      "%s: positions must be >= -1 (-1 = open end), "
+                      "got p0=%d p1=%d",
+                      kWho, p0, p1);
+
+  llama_memory_seq_cp(llama_get_memory(ctx), src, dst, p0, p1);
+  return Scheme::scm_make_bool(vm, true);
+}
+
+// Keep KV cells of only `seq`, dropping every other sequence (beam prune).
+// Pairs with llm-kv-copy: fork a prefix into several sequences, then keep the
+// winner.  Returns #t.
+static Scheme::ValueT scmllama_stub_llm_kv_keep(Scheme::VM* vm,
+                                                 Scheme::ValueT* ctx_value,
+                                                 Scheme::ValueT* seq_value)
+{
+  static const char* const kWho = "llm-kv-keep";
+  llama_context* ctx = Util::context_ptr(vm, ctx_value, kWho);
+
+  const int seq = static_cast<int>(Scheme::scm_get_int(vm, seq_value));
+  const int32_t n_seq_max = static_cast<int32_t>(llama_n_seq_max(ctx));
+  if (seq < 0 || seq >= n_seq_max)
+    Util::error_raise(vm, "%s: seq id out of range [0,%d): got %d",
+                      kWho, n_seq_max, seq);
+
+  llama_memory_seq_keep(llama_get_memory(ctx), seq);
   return Scheme::scm_make_bool(vm, true);
 }
 
@@ -352,9 +443,11 @@ void scmllama_register_context_lib(Scheme::VM* vm)
     Scheme::RegCProc("llm-context?",     scmllama_stub_llm_context_p),
     Scheme::RegCProc("llm-context-info", scmllama_stub_llm_context_info),
     Scheme::RegCProc("llm-reset",        scmllama_stub_llm_reset),
-    Scheme::RegCProc("llm-kv-pos",       scmllama_stub_llm_kv_pos),
+    Scheme::RegCProc("llm-kv-pos",       scmllama_stub_llm_kv_pos, true),
     Scheme::RegCProc("llm-kv-remove",    scmllama_stub_llm_kv_remove),
     Scheme::RegCProc("llm-kv-shift",     scmllama_stub_llm_kv_shift),
+    Scheme::RegCProc("llm-kv-copy",      scmllama_stub_llm_kv_copy, true),
+    Scheme::RegCProc("llm-kv-keep",      scmllama_stub_llm_kv_keep),
     Scheme::RegCProc("llm-perf",         scmllama_stub_llm_perf),
     Scheme::RegCProc("llm-perf-reset",   scmllama_stub_llm_perf_reset),
     Scheme::RegCProc("llm-state-save",   scmllama_stub_llm_state_save),
