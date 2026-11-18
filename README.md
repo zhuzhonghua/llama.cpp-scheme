@@ -59,6 +59,13 @@ All functions are registered as native Scheme procedures (prefix `llm-`). Option
 | `(llm-model-free model)` | Release a model |
 | `(llm-model? obj)` | Type predicate |
 | `(llm-model-info model)` | Model metadata as a hash-table (size, layers, vocab, tokens, chat template, ...) |
+| `(llm-model-meta model)` | Raw GGUF metadata as a `key -> string` hash-table (scalar keys only) |
+
+`llm-model-meta` returns the scalar GGUF key/value pairs llama.cpp keeps in
+memory: strings verbatim, numbers and booleans as text. Array metadata
+(tokenizer tables and similar) is omitted by llama.cpp and therefore absent.
+Iterate with `(hash-table->alist meta)` or look up a key with
+`(hash-table-ref meta "general.architecture")`.
 
 ### Vocab / Tokenization
 

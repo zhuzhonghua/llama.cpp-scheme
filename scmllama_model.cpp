@@ -5,6 +5,7 @@
 //   (llm-model-free model)        -> #t (idempotent)
 //   (llm-model? value)            -> boolean
 //   (llm-model-info model)        -> hash-table
+//   (llm-model-meta model)        -> hash-table (GGUF metadata, scalar keys only)
 
 #include "scmllama.h"
 #include "scmllama_util.h"
@@ -187,6 +188,60 @@ static Scheme::ValueT scmllama_stub_llm_model_info(Scheme::VM* vm,
   return *table;
 }
 
+// Reads one metadata string into a growing buffer.  llama.cpp sizes its
+// outputs like snprintf: the return value is the needed length.
+static std::string scmllama_meta_str(const llama_model* model, int32_t index,
+                                     bool want_key)
+{
+  auto read = [&](char* buf, size_t size) {
+    return want_key
+        ? llama_model_meta_key_by_index(model, index, buf, size)
+        : llama_model_meta_val_str_by_index(model, index, buf, size);
+  };
+
+  std::vector<char> buf(256);
+  int32_t n = read(buf.data(), buf.size());
+  if (n < 0)
+    return std::string();
+  if (static_cast<size_t>(n) >= buf.size())
+  {
+    buf.resize(static_cast<size_t>(n) + 1);
+    n = read(buf.data(), buf.size());
+    if (n < 0)
+      return std::string();
+  }
+  return std::string(buf.data(), static_cast<size_t>(n));
+}
+
+// Scalar GGUF metadata as a key -> string hash-table.  String values are
+// returned verbatim; numbers and booleans are rendered as text.  llama.cpp
+// skips array metadata (tokenizer tables, ...) when it builds this map, so
+// those keys are absent.
+static Scheme::ValueT scmllama_stub_llm_model_meta(Scheme::VM* vm,
+                                                   Scheme::ValueT* value)
+{
+  static const char* const kWho = "llm-model-meta";
+
+  const llama_model* model = Util::model_ptr(vm, value, kWho);
+
+  Sgcvar1(vm, table);
+  *table = Scheme::scm_make_table(vm);
+
+  const int32_t count = llama_model_meta_count(model);
+  for (int32_t i = 0; i < count; ++i)
+  {
+    const std::string key = scmllama_meta_str(model, i, true);
+    const std::string val = scmllama_meta_str(model, i, false);
+
+    Sgcvar2(vm, keyv, valv);
+    *keyv = Scheme::scm_make_string(vm, key.data(), key.size());
+    *valv = Scheme::scm_make_string(vm, val.data(), val.size());
+    Scheme::scm_table_set(vm, table, keyv, *valv);
+  }
+
+  return *table;
+}
+
 void scmllama_register_model_lib(Scheme::VM* vm)
 {
   static const Scheme::RegCProc kLib[] = {
@@ -194,6 +249,7 @@ void scmllama_register_model_lib(Scheme::VM* vm)
     Scheme::RegCProc("llm-model-free", scmllama_stub_llm_model_free),
     Scheme::RegCProc("llm-model?",     scmllama_stub_llm_model_p),
     Scheme::RegCProc("llm-model-info", scmllama_stub_llm_model_info),
+    Scheme::RegCProc("llm-model-meta", scmllama_stub_llm_model_meta),
     Scheme::RegCProc(NULL, -1)
   };
   Scheme::scm_register_lib(vm, kLib);
