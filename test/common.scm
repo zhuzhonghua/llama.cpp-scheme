@@ -3,9 +3,9 @@
 ;; Required with (require "test.common") — run from the repository root so
 ;; the default require path "./?.scm" resolves to ./test/common.scm.
 
-;; Silence llama.cpp diagnostics (model load info, metal pipelines, ...).
-;; Comment out or call (llm-quiet! #f) when debugging the C side.
-(llm-quiet! #t)
+;; llama.cpp and ggml diagnostics are disabled before the backend starts (see
+;; Runtime::Runtime), so no llm-quiet! call is needed here.  Call
+;; (llm-quiet! #f) if you want to see logs emitted after startup.
 
 (define model-path "models/Qwen3-0.6B-Q4_K_M.gguf")
 

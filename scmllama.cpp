@@ -7,14 +7,14 @@
 //
 // The llama backend lifecycle is managed by scmllama::Runtime (RAII):
 // constructor calls llama_backend_init(), destructor calls llama_backend_free().
+// llama.cpp/ggml logging is disabled before the backend starts, so startup
+// (Metal device init, model load, ...) is silent by default.
 
 #include "scmllama.h"
 
 #include "scmllama_util.h"
 
 #include "llama.h"
-
-#include <cstdlib>
 
 namespace scmllama {
 
@@ -79,11 +79,10 @@ static void scmllama_register_basic_lib(Scheme::VM* vm)
 
 Runtime::Runtime() : vm_(Scheme::scm_create_vm())
 {
-  // SCMLLAMA_QUIET=1 must be set before backend init: the Metal device
-  // init logs happen inside llama_backend_init(), earlier than any
-  // Scheme code (and llm-quiet!) can run.
-  if (getenv("SCMLLAMA_QUIET"))
-    llama_log_set(scmllama_log_noop, NULL);
+  // Diagnostics are off from the start: the Metal device init logs are
+  // emitted inside llama_backend_init(), before any Scheme code (and
+  // llm-quiet!) can run.
+  llama_log_set(scmllama_log_noop, NULL);
   llama_backend_init();
   if (vm_)
   {

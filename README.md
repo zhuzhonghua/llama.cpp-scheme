@@ -49,7 +49,7 @@ All functions are registered as native Scheme procedures (prefix `llm-`). Option
 | --- | --- |
 | `(llm-version)` | llama.cpp version string |
 | `(llm-system-info)` | Build / system information |
-| `(llm-quiet! bool)` | Silence llama.cpp and ggml logging |
+| `(llm-quiet! bool)` | Toggle llama.cpp / ggml logging at runtime; it is already off from startup, `#f` only re-enables logs emitted after the call |
 
 ### Model
 
