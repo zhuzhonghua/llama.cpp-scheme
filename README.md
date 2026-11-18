@@ -85,6 +85,7 @@ Iterate with `(hash-table->alist meta)` or look up a key with
 | `(llm-context-free ctx)` | Release a context |
 | `(llm-context? obj)` | Type predicate |
 | `(llm-context-info ctx)` | Hash-table: `n-ctx`, `n-batch`, `n-seq-max`, `n-threads`, `n-threads-batch`, `pooling-type` (`none`/`mean`/`cls`/`last`/`rank`) |
+| `(llm-set-threads ctx n [n-batch])` | Change thread counts on a live context; batch count defaults to current |
 | `(llm-reset ctx)` | Clear the KV cache / memory |
 
 ### Batch / Decode

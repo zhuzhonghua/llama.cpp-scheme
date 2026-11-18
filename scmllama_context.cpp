@@ -198,6 +198,49 @@ static Scheme::ValueT scmllama_stub_llm_context_info(Scheme::VM* vm,
   return *table;
 }
 
+// Change the thread counts on a live context: (llm-set-threads ctx n [n-batch]).
+// n_threads drives single-token decode, n_threads_batch drives prefill/batch.
+// The batch count is optional and defaults to the context's current value.
+// llama_set_n_threads() does no validation of its own, so reject negatives here
+// to keep bad input from reaching cparams.
+static Scheme::ValueT scmllama_stub_llm_set_threads(Scheme::VM* vm,
+                                                    Scheme::ValueT* ctx_value,
+                                                    Scheme::ValueT* n_value,
+                                                    Scheme::ValueT* rest)
+{
+  static const char* const kWho = "llm-set-threads";
+  llama_context* ctx = Util::context_ptr(vm, ctx_value, kWho);
+
+  if (!Scheme::scm_is_int(vm, n_value))
+    Util::error_raise(vm, "%s: n-threads expects an integer, got %s", kWho,
+                      Scheme::scm_typename(vm, n_value));
+  const int64_t n = static_cast<int64_t>(Scheme::scm_get_int(vm, n_value));
+  if (n < 0)
+    Util::error_raise(vm, "%s: n-threads must be >= 0, got %lld", kWho,
+                      static_cast<long long>(n));
+
+  int64_t n_batch = static_cast<int64_t>(llama_n_threads_batch(ctx));
+  if (rest && !Scheme::scm_is_null(vm, rest))
+  {
+    const int count = Scheme::scm_proper_list_len(vm, rest);
+    if (count != 1)
+      Util::error_raise(vm, "%s: expected at most one n-threads-batch", kWho);
+
+    Scheme::ValueT* batch_value = Scheme::scm_car(vm, rest);
+    if (!Scheme::scm_is_int(vm, batch_value))
+      Util::error_raise(vm, "%s: n-threads-batch expects an integer, got %s",
+                        kWho, Scheme::scm_typename(vm, batch_value));
+    n_batch = static_cast<int64_t>(Scheme::scm_get_int(vm, batch_value));
+    if (n_batch < 0)
+      Util::error_raise(vm, "%s: n-threads-batch must be >= 0, got %lld", kWho,
+                        static_cast<long long>(n_batch));
+  }
+
+  llama_set_n_threads(ctx, static_cast<int32_t>(n),
+                      static_cast<int32_t>(n_batch));
+  return Scheme::scm_make_bool(vm, true);
+}
+
 // Drop the KV cache so the same context can take a fresh prompt.
 static Scheme::ValueT scmllama_stub_llm_reset(Scheme::VM* vm,
                                               Scheme::ValueT* value)
@@ -463,6 +506,7 @@ void scmllama_register_context_lib(Scheme::VM* vm)
     Scheme::RegCProc("llm-context-free", scmllama_stub_llm_context_free),
     Scheme::RegCProc("llm-context?",     scmllama_stub_llm_context_p),
     Scheme::RegCProc("llm-context-info", scmllama_stub_llm_context_info),
+    Scheme::RegCProc("llm-set-threads",  scmllama_stub_llm_set_threads, true),
     Scheme::RegCProc("llm-reset",        scmllama_stub_llm_reset),
     Scheme::RegCProc("llm-kv-pos",       scmllama_stub_llm_kv_pos, true),
     Scheme::RegCProc("llm-kv-remove",    scmllama_stub_llm_kv_remove),
