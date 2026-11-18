@@ -4,6 +4,26 @@ Scheme bindings for [llama.cpp](https://github.com/ggml-org/llama.cpp), built on
 
 The project produces a host executable, `scmllama`, that loads GGUF models and runs local LLM inference directly from Scheme scripts: tokenization, decoding, sampling, and text generation, with full lifecycle control over handles (model / context / batch / sampler). Errors surface as readable Scheme errors instead of process crashes.
 
+## Quickstart
+
+```scheme
+(define m    (llm-model-load "models/Qwen3-0.6B-Q4_K_M.gguf"))
+(define ctx  (llm-context-new m '((n-ctx . 1024))))
+(define smpl (llm-sampler-new m '((temp . 0.7))))
+
+(llm-chat-generate ctx smpl
+  '(("system" . "You are a village blacksmith. Answer in one short sentence.")
+    ("user"   . "Do you have a sword for me? /no_think"))
+  (lambda (piece) (display piece) #t))
+```
+
+That is the whole idea: a model, a context, a sampler, and a generation that
+streams tokens into a Scheme procedure. `./build/scmllama test/quickstart.scm`
+runs exactly this file. Nothing is sent off-process.
+
+Qwen3 opens with a reasoning block; `strip-think` in `test/npc-demo.scm` shows
+one way to drop it.
+
 ![The blacksmith refuses a hand-in: intent GIVE, Scheme verdict reject, scripted refusal](demo.gif)
 
 ## Demo: The Ford
@@ -32,6 +52,7 @@ git submodule update --init --recursive   # llama.cpp + dummyscheme
 ./build.sh                                # cmake configure + build, output in build/
 
 ./build/scmllama test/hello.scm
+./build/scmllama test/quickstart.scm  # one chat turn, needs models/Qwen3-0.6B-Q4_K_M.gguf
 ./build/scmllama test/multiseq.scm        # two sequences generated in one decode
 ./build/scmllama test/npc-demo.scm        # interactive NPC + quest state machine
 ```
@@ -87,6 +108,39 @@ Iterate with `(hash-table->alist meta)` or look up a key with
 | `(llm-context-info ctx)` | Hash-table: `n-ctx`, `n-batch`, `n-seq-max`, `n-threads`, `n-threads-batch`, `pooling-type` (`none`/`mean`/`cls`/`last`/`rank`) |
 | `(llm-set-threads ctx n [n-batch])` | Change thread counts on a live context; batch count defaults to current |
 | `(llm-reset ctx)` | Clear the KV cache / memory |
+
+### KV cache
+
+Generation keeps its cache in the context. These calls let a script continue a
+conversation instead of re-prefilling it, or throw away part of it
+deliberately. Positions are in tokens.
+
+| Function | Description |
+| --- | --- |
+| `(llm-kv-pos ctx [seq])` | Tokens currently cached for the sequence (0 when empty) |
+| `(llm-kv-remove ctx p0 p1)` | Drop cached cells in `[p0, p1)`; `p1 = -1` truncates the tail. A middle range leaves a hole — prefer truncating |
+| `(llm-kv-shift ctx p0 p1 delta)` | Add `delta` to positions in `[p0, p1)`, e.g. close a front hole with `(llm-kv-shift ctx 0 -1 -n)` |
+| `(llm-kv-copy ctx src dst [p0 p1])` | Copy a cached prefix from `src` into `dst` (beam expand / fork) |
+| `(llm-kv-keep ctx seq)` | Keep only `seq`, drop the others (beam prune) |
+
+`llm-generate` and `llm-chat-generate` accept `(keep-kv . #t)` to append at
+`llm-kv-pos` instead of starting at 0. `llm-chat-generate` refuses it on
+purpose: every call re-renders the whole message list, so appending would
+duplicate history.
+
+One caveat worth knowing: `llm-kv-shift` is `llama_memory_seq_add`, which
+rewrites position metadata and does **not** recompute cached keys. A shifted
+context is an approximation that degrades with distance; if that matters,
+clear and rebuild from the turns you still want.
+
+### Perf and session state
+
+| Function | Description |
+| --- | --- |
+| `(llm-perf ctx)` | Hash-table of counters since the last reset: `n-prefill`, `n-decode`, `t-prefill-ms`, `t-decode-ms`, `t-load-ms`, `prefill-tps`, `decode-tps` |
+| `(llm-perf-reset ctx)` | Zero the counters |
+| `(llm-state-save ctx path)` | Write the KV cache and logits to a session file; token history stays in Scheme |
+| `(llm-state-load ctx path)` | Restore a session file into a context |
 
 ### Batch / Decode
 
