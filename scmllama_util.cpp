@@ -127,9 +127,20 @@ llama_batch* Util::batch_ptr(Scheme::VM* vm, Scheme::ValueT* value,
   return batch_ptr(batch_handle(vm, value, who));
 }
 
+BatchBox* Util::batch_box(Scheme::VM* vm, Scheme::ValueT* value,
+                          const char* who)
+{
+  return batch_box(batch_handle(vm, value, who));
+}
+
+BatchBox* Util::batch_box(LlmHandle* handle)
+{
+  return static_cast<BatchBox*>(handle->ptr);
+}
+
 llama_batch* Util::batch_ptr(LlmHandle* handle)
 {
-  return static_cast<llama_batch*>(handle->ptr);
+  return &batch_box(handle)->batch;
 }
 
 // ---- Util: lora accessors ----

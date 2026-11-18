@@ -2,10 +2,13 @@
 //
 // Scheme side:
 //   (llm-sampler-new model [opts])   -> sampler
-//   (llm-sampler-sample smpl ctx)    -> token id
+//   (llm-sampler-sample smpl ctx [row]) -> token id
 //   (llm-sampler-reset smpl)         -> #t
 //   (llm-sampler-free smpl)          -> #t
 //   (llm-sampler? smpl)              -> boolean
+//
+// `row` is the batch index returned by llm-batch-add-token; omit it (or pass
+// -1) to sample the last token decoded into the context.
 //
 // A sampler keeps state across tokens: grammar parser position, penalty
 // history, and the RNG stream.  Reset it before reusing the same sampler for a
@@ -175,17 +178,49 @@ static Scheme::ValueT scmllama_stub_llm_sampler_new(Scheme::VM* vm,
                                      scmllama_sampler_destroy);
 }
 
-// Samples from the logits of the last token decoded into ctx.
+// Samples from the logits of the last token decoded into ctx, or from an
+// explicit batch row (needed when a batch holds several sequences).
 static Scheme::ValueT scmllama_stub_llm_sampler_sample(Scheme::VM* vm,
                                                        Scheme::ValueT* value,
-                                                       Scheme::ValueT* ctx_value)
+                                                       Scheme::ValueT* ctx_value,
+                                                       Scheme::ValueT* rest)
 {
   static const char* const kWho = "llm-sampler-sample";
 
   llama_sampler* smpl = Util::sampler_ptr(vm, value, kWho);
   llama_context* ctx = Util::context_ptr(vm, ctx_value, kWho);
 
-  llama_token token = llama_sampler_sample(smpl, ctx, -1);
+  // row = batch index of the token whose logits to sample; -1 (default) means
+  // the last token decoded.  With a multi-sequence batch each token index is a
+  // different logits row, so parallel sequences sample their own rows.
+  int32_t row = -1;
+  if (rest && !Scheme::scm_is_null(vm, rest))
+  {
+    const int n = Scheme::scm_proper_list_len(vm, rest);
+    if (n != 1)
+      Util::error_raise(vm, "%s: expected at most one batch row index", kWho);
+
+    Scheme::ValueT* row_value = Scheme::scm_car(vm, rest);
+    if (!Scheme::scm_is_int(vm, row_value))
+      Util::error_raise(vm, "%s: batch row expects an integer, got %s", kWho,
+                        Scheme::scm_typename(vm, row_value));
+
+    int64_t r = static_cast<int64_t>(Scheme::scm_get_int(vm, row_value));
+    if (r < -1 || r > INT32_MAX)
+      Util::error_raise(vm, "%s: batch row %lld is out of range", kWho,
+                        static_cast<long long>(r));
+    row = static_cast<int32_t>(r);
+  }
+
+  // llama_sampler_sample asserts when the row has no logits; report a Scheme
+  // error instead (the usual cause is a token added without (logits . #t)).
+  if (row >= 0 && !llama_get_logits_ith(ctx, row))
+    Util::error_raise(vm,
+                      "%s: batch row %d has no logits; mark the token with "
+                      "(logits . #t) or (llm-batch-set-logits batch %d #t)",
+                      kWho, row, row);
+
+  llama_token token = llama_sampler_sample(smpl, ctx, row);
   if (token < 0)
     Util::error_raise(vm, "%s: sampling failed", kWho);
 
@@ -222,7 +257,7 @@ void scmllama_register_sampler_lib(Scheme::VM* vm)
 {
   static const Scheme::RegCProc kLib[] = {
     Scheme::RegCProc("llm-sampler-new",    scmllama_stub_llm_sampler_new, true),
-    Scheme::RegCProc("llm-sampler-sample", scmllama_stub_llm_sampler_sample),
+    Scheme::RegCProc("llm-sampler-sample", scmllama_stub_llm_sampler_sample, true),
     Scheme::RegCProc("llm-sampler-reset",  scmllama_stub_llm_sampler_reset),
     Scheme::RegCProc("llm-sampler-free",   scmllama_stub_llm_sampler_free),
     Scheme::RegCProc("llm-sampler?",       scmllama_stub_llm_sampler_p),

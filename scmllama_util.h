@@ -18,6 +18,16 @@ struct LlmHandle;    // defined in scmllama_handle.h
 class HandleTable;   // defined in scmllama_handle.h
 class Runtime;       // defined in scmllama.h
 
+// Heap-allocated llama_batch plus the capacity it was initialized with:
+// llama_batch does not remember the capacity, but llm-batch-add-token has to
+// stop before writing past the allocated arrays.  Batch handles point at this
+// box; Util::batch_ptr() returns &box->batch.
+struct BatchBox {
+  llama_batch batch;
+  int32_t capacity;
+  int32_t n_seq_max;
+};
+
 // Frees a llama_batch on scope exit, including when a Scheme error unwinds.
 class BatchGuard {
 public:
@@ -97,10 +107,13 @@ public:
   // --- batch accessors ---
 
   // One-call batch accessor: handle lookup + kind check + dereference.
+  static BatchBox* batch_box(Scheme::VM* vm, Scheme::ValueT* value,
+                             const char* who);
   static llama_batch* batch_ptr(Scheme::VM* vm, Scheme::ValueT* value,
                                 const char* who);
 
-  // Accessor for callers that already hold a checked handle.
+  // Accessors for callers that already hold a checked handle.
+  static BatchBox* batch_box(LlmHandle* handle);
   static llama_batch* batch_ptr(LlmHandle* handle);
 
   // --- lora accessors ---

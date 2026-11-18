@@ -32,6 +32,7 @@ git submodule update --init --recursive   # llama.cpp + dummyscheme
 ./build.sh                                # cmake configure + build, output in build/
 
 ./build/scmllama test/hello.scm
+./build/scmllama test/multiseq.scm        # two sequences generated in one decode
 ./build/scmllama test/npc-demo.scm        # interactive NPC + quest state machine
 ```
 
@@ -90,19 +91,61 @@ Iterate with `(hash-table->alist meta)` or look up a key with
 
 | Function | Description |
 | --- | --- |
-| `(llm-batch-from-tokens tokens [options...])` | Build a batch from a token list |
+| `(llm-batch-from-tokens tokens [options...])` | Build a batch from a token list (sequence 0, positions `0..n-1`) |
+| `(llm-batch-new capacity [options...])` | Create an empty batch; fill it token by token |
+| `(llm-batch-add-token batch token pos [options...])` | Append a token at a position; returns its batch row index |
+| `(llm-batch-clear batch)` | Drop the tokens, keep the allocation |
 | `(llm-batch-set-logits batch index)` | Mark a position to produce logits |
 | `(llm-batch-n-tokens batch)` | Number of tokens in the batch |
 | `(llm-batch-free batch)` | Release a batch |
 | `(llm-batch? obj)` | Type predicate |
 | `(llm-decode ctx batch)` | Run the forward pass |
 
+`llm-batch-from-tokens` covers the single-sequence case. For several
+sequences, create the batch yourself and give every token a sequence and a
+position; `llm-batch-new` takes `(n-seq-max . N)` for the number of sequence
+ids a single token may carry, and `llm-batch-add-token` accepts `seq-id`
+(default `0`), `seq-ids` (a list, to share one token between sequences) and
+`logits` (default `#f`):
+
+```scheme
+(define ctx (llm-context-new m '((n-ctx . 1024) (n-seq-max . 2))))
+
+;; one token per sequence, sampled from a single decode
+(define batch (llm-batch-new 2 '((n-seq-max . 2))))
+(llm-batch-add-token batch token-a 12 '((seq-id . 0) (logits . #t)))  ; -> 0
+(llm-batch-add-token batch token-b 7  '((seq-id . 1) (logits . #t)))  ; -> 1
+(llm-decode ctx batch)
+
+(llm-sampler-sample smpl-a ctx 0)   ; row 0 = sequence 0
+(llm-sampler-sample smpl-b ctx 1)   ; row 1 = sequence 1
+```
+
+Prefilling works the same way, one `llm-batch-add-token` per prompt token with
+its sequence id and position; mark only the token you want to sample from with
+`(logits . #t)`.
+
+Keep positions consecutive within a sequence: the KV cache is append-only and
+llama.cpp rejects a decode that reuses an occupied position. `llm-decode`
+validates the batch first and reports empty batches, tokens without a sequence,
+sequence ids beyond the context's `n-seq-max`, and negative positions as Scheme
+errors instead of aborting.
+
+Unless the context is created with `(kv-unified . #t)`, `n-ctx` is divided
+evenly between the sequences: `(n-ctx . 1024)` with `(n-seq-max . 2)` leaves
+512 tokens per sequence. A unified cache shares the whole `n-ctx` and lets one
+token belong to several sequences via `seq-ids`.
+
+`test/multiseq.scm` is a complete example: it prefills two prompts in one batch,
+prints both generations advancing side by side, then repeats the same steps
+with a single sequence (`./build/scmllama test/multiseq.scm`).
+
 ### Sampling
 
 | Function | Description |
 | --- | --- |
 | `(llm-sampler-new model [options...])` | Create a sampler chain (grammar → penalties → top-k → top-p → min-p → temp → greedy/dist) |
-| `(llm-sampler-sample sampler ctx)` | Sample the next token from logits |
+| `(llm-sampler-sample sampler ctx [row])` | Sample a token from the last decoded logits, or from an explicit batch row |
 | `(llm-sampler-reset sampler)` | Clear sampler state (grammar progress, penalty history, RNG stream) |
 | `(llm-sampler-free sampler)` | Release a sampler |
 | `(llm-sampler? obj)` | Type predicate |
