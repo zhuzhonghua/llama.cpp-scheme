@@ -84,7 +84,7 @@ Iterate with `(hash-table->alist meta)` or look up a key with
 | `(llm-context-new model [options...])` | Create an inference context |
 | `(llm-context-free ctx)` | Release a context |
 | `(llm-context? obj)` | Type predicate |
-| `(llm-context-info ctx)` | Context info |
+| `(llm-context-info ctx)` | Hash-table: `n-ctx`, `n-batch`, `n-seq-max`, `n-threads`, `n-threads-batch`, `pooling-type` (`none`/`mean`/`cls`/`last`/`rank`) |
 | `(llm-reset ctx)` | Clear the KV cache / memory |
 
 ### Batch / Decode

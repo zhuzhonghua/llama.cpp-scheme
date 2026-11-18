@@ -39,6 +39,20 @@ static enum llama_pooling_type scmllama_pooling_type(Scheme::VM* vm,
                     who, value.c_str());
 }
 
+// Reverse of scmllama_pooling_type: enum -> canonical lowercase name.
+static const char* scmllama_pooling_name(enum llama_pooling_type type)
+{
+  switch (type) {
+    case LLAMA_POOLING_TYPE_NONE:  return "none";
+    case LLAMA_POOLING_TYPE_MEAN:  return "mean";
+    case LLAMA_POOLING_TYPE_CLS:   return "cls";
+    case LLAMA_POOLING_TYPE_LAST:  return "last";
+    case LLAMA_POOLING_TYPE_RANK:  return "rank";
+    case LLAMA_POOLING_TYPE_UNSPECIFIED: return "unspecified";
+  }
+  return "unknown";
+}
+
 static void scmllama_context_destroy(void* ptr)
 {
   if (ptr)
@@ -167,11 +181,18 @@ static Scheme::ValueT scmllama_stub_llm_context_info(Scheme::VM* vm,
   Scheme::scm_table_set(vm, table, keyv, *valv);
 
   *keyv = Scheme::scm_make_string(vm, "n-threads", 9);
-  *valv = Scheme::scm_make_int(vm, 0);  // TODO: no getter for n_threads
+  *valv = Scheme::scm_make_int(vm, llama_n_threads(ctx));
   Scheme::scm_table_set(vm, table, keyv, *valv);
 
-  *keyv = Scheme::scm_make_string(vm, "embeddings", 10);
-  *valv = Scheme::scm_make_bool(vm, false);  // TODO: no getter for embeddings
+  *keyv = Scheme::scm_make_string(vm, "n-threads-batch", 15);
+  *valv = Scheme::scm_make_int(vm, llama_n_threads_batch(ctx));
+  Scheme::scm_table_set(vm, table, keyv, *valv);
+
+  // The C API exposes a pooling-type getter but no "embeddings enabled"
+  // getter, so report the real pooling type instead of a hardcoded boolean.
+  const std::string pooling(scmllama_pooling_name(llama_pooling_type(ctx)));
+  *keyv = Scheme::scm_make_string(vm, "pooling-type", 12);
+  *valv = Scheme::scm_make_string(vm, pooling.c_str(), (int) pooling.size());
   Scheme::scm_table_set(vm, table, keyv, *valv);
 
   return *table;

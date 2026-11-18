@@ -14,9 +14,12 @@
 (display "context? rejects non-handle") (display ": ") (write (llm-context? 42)) (newline)
 
 (define info (llm-context-info ctx))
-(display "n-ctx    : ") (display (hash-table-ref info "n-ctx")) (newline)
-(display "n-batch  : ") (display (hash-table-ref info "n-batch")) (newline)
-(display "n-seq-max: ") (display (hash-table-ref info "n-seq-max")) (newline)
+(display "n-ctx          : ") (display (hash-table-ref info "n-ctx")) (newline)
+(display "n-batch        : ") (display (hash-table-ref info "n-batch")) (newline)
+(display "n-seq-max      : ") (display (hash-table-ref info "n-seq-max")) (newline)
+(display "n-threads      : ") (display (hash-table-ref info "n-threads")) (newline)
+(display "n-threads-batch: ") (display (hash-table-ref info "n-threads-batch")) (newline)
+(display "pooling-type   : ") (display (hash-table-ref info "pooling-type")) (newline)
 
 (display "n-ctx is 512") (display ": ") (write (hash-table-ref info "n-ctx")) (newline)
 (display "n-batch is 256") (display ": ") (write (hash-table-ref info "n-batch")) (newline)
